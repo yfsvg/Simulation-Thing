@@ -8,11 +8,12 @@
 
 #include "unit.hpp"
 
-extern float mapWidth = 1000;
-extern float mapHeight = 1000;
+extern float mapWidth = 5000;
+extern float mapHeight = 5000;
 
-Camera2D camera = { 0 };
-float cameraSpeed = 400.0f; // Speed in pixels per second
+Camera2D camera = {0};
+float cameraSpeed = 400.0f;
+
 
 void initCamera() {
     camera.target = (Vector2){ 0.0f, 0.0f }; 
@@ -20,6 +21,8 @@ void initCamera() {
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 }
+
+
 
 void cameraMovement() {
     float dt = GetFrameTime();
@@ -38,8 +41,12 @@ void cameraMovement() {
     if (IsKeyDown(KEY_SPACE)) camera.zoom -= 1.0f * dt;
 
     // Clamp zoom levels to prevent inverse/extreme values
-    if (camera.zoom < 0.1f) camera.zoom = 0.1f;
-    if (camera.zoom > 5.0f) camera.zoom = 5.0f;
+    if (camera.zoom < 0.1f) {
+        camera.zoom = 0.1f;
+    }
+    if (camera.zoom > 5.0f) {
+        camera.zoom = 5.0f;
+    }
 }
 
 void drawBG() {
@@ -86,9 +93,26 @@ int main(void) {
         BeginDrawing();
         ClearBackground(Color{25, 25, 25, 255});
 
+        // Pressing C makes units, adds them to the pile.
+        if (IsKeyPressed(KEY_C)) {
+            unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0});
+            allUnits.push_back(newUnit);
+        }
+
+        // Pressing X makes them go back into cuddle pile
+        if (IsKeyPressed(KEY_X)) {
+            
+        }
         
         BeginMode2D(camera);
             drawBG();
+            float deltaTime = GetFrameTime();
+            for (unit& unitToDraw : allUnits) {
+                std::vector<unit> allUnitsToSend = allUnits;
+                allUnitsToSend.erase(allUnitsToSend.begin() + unitToDraw.getID() - 1);
+                unitToDraw.tickUpdate(deltaTime, allUnits);
+                unitToDraw.draw();
+            }
         EndMode2D();
 
         

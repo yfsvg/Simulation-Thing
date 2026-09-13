@@ -1,0 +1,2 @@
+# September 11-12
+Start of the project, very excited. Created the foundation of the raylib simulation (just a grid and padding and camera movement.) Afterwards, created the first basic unit which basically just runs towards the goals that it wants. They are conscious about strategic deceleration and changing directions. Within a certain range, the bots also intentionally avoid one another 
