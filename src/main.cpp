@@ -6,10 +6,14 @@
 #include "raylib.h"
 #include "raymath.h"
 
+#include "main.hpp"
 #include "unit.hpp"
 
-extern float mapWidth = 5000;
-extern float mapHeight = 5000;
+std::vector<std::vector<bool>> cuddleGrid;
+float mapWidth = 300;
+float mapHeight = 300;
+
+bool exploringOrNo = true;
 
 Camera2D camera = {0};
 float cameraSpeed = 400.0f;
@@ -21,7 +25,6 @@ void initCamera() {
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 }
-
 
 
 void cameraMovement() {
@@ -101,7 +104,33 @@ int main(void) {
 
         // Pressing X makes them go back into cuddle pile
         if (IsKeyPressed(KEY_X)) {
-            
+            if (exploringOrNo) {
+                float closestSquare = pow(std::ceil(std::sqrt(allUnits.size())), 2);
+
+                cuddleGrid.clear();
+                for (int row = 0; row < closestSquare; row++) {
+                    std::vector<bool> toPush = {};
+                    for (int col = 0; col < closestSquare; col++) {
+                        toPush.push_back(false);
+                    }
+                    cuddleGrid.push_back(toPush);
+                }
+
+
+                for (unit& oneUnit : allUnits) {
+                    oneUnit.cuddle();
+                }
+                
+
+            } else {
+                // Start exploring!
+                for (unit& oneUnit : allUnits) {
+                    oneUnit.goExplore();
+                }
+            }
+
+            exploringOrNo = !exploringOrNo;
+
         }
         
         BeginMode2D(camera);
@@ -115,6 +144,7 @@ int main(void) {
             }
         EndMode2D();
 
+        
         
 
         EndDrawing();

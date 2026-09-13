@@ -14,8 +14,12 @@ class unit {
         float velocity;
         float acceleration;
 
+        float personalSpace;
+        float repelStrength;
+
         Vector2 currentPositionalGoal;
         float currentDirectionalGoal;
+
 
 
         
@@ -30,6 +34,9 @@ class unit {
         void cuddle();
         Vector2 getPosition();
         float getID();
+
+        void claimCuddleSpot();
+        void goExplore();
 
         enum class unitState {
             Exploring, // Roaming behavior with randomly placed incentives and tasks. When given the task, its based on their position in the square. Each quadrant of the square gets a task inside that quadrant for ease of getting out
