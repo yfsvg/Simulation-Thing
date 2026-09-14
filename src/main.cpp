@@ -66,7 +66,6 @@ void drawBG() {
         Vector2 startPos = { minX, (float)y };
         Vector2 endPos = { maxX, (float)y };
         DrawLineV(startPos, endPos, lineColor);
-        
     }
 
     // vertical lines

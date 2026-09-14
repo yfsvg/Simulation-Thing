@@ -120,6 +120,7 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     } else {
         currentDirectionalGoal = std::atan2(desiredY, desiredX) * (180.0f / 3.1415926535897932384f);
     }
+    // the best one
     float diff = currentDirectionalGoal - direction;
     while (diff < -180.0f) diff += 360.0f;
     while (diff > 180.0f) diff -= 360.0f;
