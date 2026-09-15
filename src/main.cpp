@@ -2,16 +2,21 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <random>
+#include <cmath>
 
 #include "raylib.h"
 #include "raymath.h"
 
 #include "main.hpp"
 #include "unit.hpp"
+#include "incentives.hpp"
 
 std::vector<std::vector<bool>> cuddleGrid;
-float mapWidth = 300;
-float mapHeight = 300;
+float mapWidth = 10000;
+float mapHeight = 10000;
+
+std::vector<std::vector<bool>> exploredTiles;
 
 bool exploringOrNo = true;
 
@@ -76,18 +81,61 @@ void drawBG() {
         
     }
 
+    // highligh already explored parts. Include fix
+    for (int row = 0; row < mapHeight / 25; row++) {
+        for (int col = 0; col < mapWidth / 25; col++) {
+
+            if (!exploredTiles[row][col]) {
+                DrawRectangle(col*25 - mapWidth/2, row*25 - mapHeight/2, 25, 25, {0, 0, 0, 100});
+            } else {
+
+            }
+
+        };
+    };
+
     // Draw center
     DrawRectangle(-10, -10, 20, 20, WHITE);
     
 }
 
+
+int randomNumMain(int min, int max) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> distrib(min, max);
+    return distrib(gen);
+}
+
 int main(void) {
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE); 
     InitWindow(800, 800, "Simulation");
     SetTargetFPS(60);
 
     std::vector<unit> allUnits;
+    std::vector<incentives> allIncentives;
+    // Just the IDs, use the IDs as reference to get the actual data from the full incentive array
+    int totalIncentives = 100;
+
+    for (int i = 0; i < totalIncentives; i++) {
+        Vector2 newPos = { (float)randomNumMain(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNumMain(mapHeight * -0.5f, mapHeight * 0.5f) };
+        incentives newIncentive = incentives((int)(allIncentives.size() + 1), newPos, randomNumMain(0, 1000)/100.0f, randomNumMain(0, 1000)/100.0f);
+        allIncentives.push_back(newIncentive);
+    }
+
+    exploredTiles.clear();
+    for (int row = 0; row < mapHeight / 25; row++) {
+        std::vector<bool> toPush;
+        for (int col = 0; col < mapWidth / 25; col++) {
+            toPush.push_back(false);
+        };
+        exploredTiles.push_back(toPush);
+    };
+
 
     initCamera();
+
+
 
     while (!WindowShouldClose()) {
         cameraMovement();
@@ -124,7 +172,7 @@ int main(void) {
             } else {
                 // Start exploring!
                 for (unit& oneUnit : allUnits) {
-                    oneUnit.goExplore();
+                    oneUnit.goExplore((int)allUnits.size());
                 }
             }
 
@@ -140,10 +188,26 @@ int main(void) {
                 allUnitsToSend.erase(allUnitsToSend.begin() + unitToDraw.getID() - 1);
                 unitToDraw.tickUpdate(deltaTime, allUnits);
                 unitToDraw.draw();
+
+                Vector2 unitPos = unitToDraw.getPosition();
+                for (incentives& indivIncentive : allIncentives) {
+                    // Is it within 120 pixels? If so, remove incentive
+                    Vector2 incentivePos = indivIncentive.getPosition();
+
+                    if (pow(unitPos.x - incentivePos.x, 2.0f) + pow(unitPos.y - incentivePos.y, 2) < pow(120, 2) && !indivIncentive.isFound()) {
+                        indivIncentive.die();
+                        // Tell the unit qbout it you found one
+                    }
+                }
+            }
+
+            for (incentives& indivIncentive : allIncentives) {
+                indivIncentive.draw();
             }
         EndMode2D();
 
         
+        // Detect to see if any units are close enough to any of the incentives.
         
 
         EndDrawing();

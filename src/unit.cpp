@@ -3,12 +3,16 @@
 #include <random>
 #include <cmath>
 #include <vector>
+#include <algorithm>
+#include <set>
 
 #include "raylib.h"
 #include "raymath.h"
 
 #include "main.hpp"
 #include "unit.hpp"
+
+std::vector<incentives> sharedIncentivesFound;
 
 int randomNum(int min, int max) {
     static std::random_device rd;
@@ -27,17 +31,20 @@ unit::unit(float inputId, Vector2 inputPosition) {
     velocity = randomNum(0, 20) + 0.0f;
     acceleration = 0;
 
-    currentPositionalGoal = { (float)randomNum(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNum(mapHeight * -0.5f, mapHeight * 0.5f) };
+    currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
     currentDirectionalGoal = std::atan2(currentPositionalGoal.y - position.y, currentPositionalGoal.x - position.x) * (180.0f / 3.1415926535897932384f);
 
     idAsString = std::to_string(id);
     idAsString = idAsString.substr(0, idAsString.find('.'));
 
-    currentState = unitState::Exploring;
+    currentState = unitState::HangingOut;
 
-    personalSpace = 150.0f; // radius at which repulsion kicks in
-    repelStrength = 4.0f; // How powerful the repulsion is. Probably should be reducing during cuddling or returning stages so they are more willing to closer
+    personalSpace = 125.0f; // radius at which repulsion kicks in
+    repelStrength = 3.0f; // How powerful the repulsion is. Probably should be reducing during cuddling or returning stages so they are more willing to closer
+    vision = 5;
+    explorationRadius = 3000;
 
+    incentivesFoundInSession.clear();
 }
 
 Vector2 unit::getPosition() {
@@ -64,8 +71,6 @@ void unit::draw() {
 }
 
 
-
-
 void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     // !!!!EXPLORING BEHAVIOR!!!!
     // !!!!EXPLORING BEHAVIOR!!!!
@@ -76,12 +81,11 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     float dy = currentPositionalGoal.y - myPos.y;
     float distance = std::sqrt(dx * dx + dy * dy);
 
-    // Fix: Normalize the goal direction so it's comparable in scale to repulsion
+
     float goalX = (distance > 0.0001f) ? dx / distance : 0.0f;
     float goalY = (distance > 0.0001f) ? dy / distance : 0.0f;
 
-
-
+    // MRE-CCIC's rendezvous/comms structure, feeding into an MRTA task allocation step at each rendezvous
 
 
     Vector2 repulsionForces = {0.0f, 0.0f};
@@ -132,8 +136,8 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
 
 
     if (currentState == unitState::Exploring) {
-        personalSpace = 150.0f;
-        repelStrength = 4.0f;
+        personalSpace = 125.0f;
+        repelStrength = 3.0f;
     } else if (currentState == unitState::CuddlingUp) {
         personalSpace = 0.0f;
         repelStrength = 0.0f;
@@ -143,9 +147,11 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     }
     
 
-    if (distance < 40.0f) {
+    if (currentState == unitState::HangingOut && distance < 20.0f) {
+        currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
+    } else if (distance < 40.0f) {
         if (currentState == unitState::Exploring) {
-            currentPositionalGoal = { (float)randomNum(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNum(mapHeight * -0.5f, mapHeight * 0.5f) };
+            goExploreTarget((int)(allOtherUnits.size()));
         }
     } else if (distance < 50.0f && currentState == unitState::Returning) {
         currentState = unitState::CuddlingUp;
@@ -153,11 +159,27 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     }
 
 
-    
-
     velocity += acceleration * deltaTime;
     position.x += velocity * cosf(direction * (3.1415926535897932384f / 180.0f)) * deltaTime;
     position.y += velocity * sinf(direction * (3.1415926535897932384f / 180.0f)) * deltaTime;
+
+
+    // mark newly wandered areas as explored with a radius of vision tiles
+    int centerVertical = (int)((position.x + mapWidth * 0.5f) / 25);
+    int centerHorizontal = (int)((position.y + mapHeight * 0.5f) / 25);
+
+    for (int row = std::max(0, centerHorizontal - vision); row <= std::min((int)(mapHeight / 25) - 1, centerHorizontal + vision); ++row) {
+        for (int col = std::max(0, centerVertical - vision); col <= std::min((int)(mapWidth / 25) - 1, centerVertical + vision); ++col) {
+
+            int dx = col - centerVertical;
+            int dy = row - centerHorizontal;
+
+            if (dx * dx + dy * dy <= vision * vision) {
+                exploredTiles[row][col] = true;
+            }
+        }
+    }
+
 }
 
 
@@ -201,13 +223,38 @@ void unit::claimCuddleSpot() {
 void unit::cuddle() {
     if (currentState == unitState::Exploring) {
         currentState = unitState::Returning;
+        for (int i = 0; i < incentivesFoundInSession.size(); i++) {
+            // Not necessary to check for uniqueness because each incentive can only be discovered once anyways
+            sharedIncentivesFound.push_back(incentivesFoundInSession[i]);
+        }
         claimCuddleSpot();
     }
 }
 
 
 
-void unit::goExplore() {
+void unit::goExploreTarget(int totalUnits) {
+    if (totalUnits <= 0) totalUnits = 1;
+
+    float sliceDeg = 360.0f / (float)totalUnits;
+    float sliceStart = (id - 1.0f) * sliceDeg;
+
+    float angleDeg = sliceStart + randomNum(0, (int)sliceDeg) + 0.0f;
+    float angleRad = angleDeg * (3.1415926535897932384f / 180.0f);
+
+    float r = explorationRadius * std::sqrt(randomNum(0, 1000) / 1000.0f);
+
+    currentPositionalGoal = Vector2{
+        r * cosf(angleRad),
+        r * sinf(angleRad)
+    };
+}
+
+void unit::goExplore(int totalUnits) {
     currentState = unitState::Exploring;
-    currentPositionalGoal = { (float)randomNum(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNum(mapHeight * -0.5f, mapHeight * 0.5f) };
+    goExploreTarget(totalUnits);
+}
+
+void unit::findOne(incentives incentiveFound) {
+    incentivesFoundInSession.push_back(incentiveFound);
 }
