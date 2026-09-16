@@ -17,9 +17,9 @@
 
 #include <math.h>
 #include <string>
-#include <random>
 #include <cmath>
 #include <vector>
+#include <algorithm>
 
 #include "raylib.h"
 #include "raymath.h"
@@ -34,6 +34,17 @@ incentives::incentives(int inputId, Vector2 inputPosition, float inputInterest, 
     difficulty = inputDifficulty;
 
     found = false;
+
+    int neededUnitsCount = randomNum(1, 3);
+    if (inputDifficulty > 5.0f) {neededUnitsCount += 1;};
+    // Making n amount of random choices to decide what to put as the types needed
+    while (typeOfUnitsNeeded.size() < neededUnitsCount) {
+        int unitType = randomNum(0, allUnitTypes.size() - 1);
+        if (std::find(typeOfUnitsNeeded.begin(), typeOfUnitsNeeded.end(), unitType) == typeOfUnitsNeeded.end()) {
+            typeOfUnitsNeeded.push_back(unitType);
+        }
+    }
+
 }
 
 Vector2 incentives::getPosition() {
@@ -52,7 +63,7 @@ float incentives::getDifficulty() {
     return difficulty;
 };
 
-void incentives::draw() {
+void incentives::draw(Vector2 mouseWorldPosition) {
     int size = (int)difficulty*5+50;
 
     if (found) {
@@ -64,6 +75,19 @@ void incentives::draw() {
     std::string str_converted = std::to_string(interest);
     str_converted.resize(4);
     DrawText(str_converted.c_str(), position.x - MeasureText(str_converted.c_str(), 20)/2, position.y - 7.5, 20, BLACK);
+
+    // Display info textbox thign
+    if (mouseWorldPosition.x >= position.x - size / 2 && mouseWorldPosition.x <= position.x + size / 2 &&
+        mouseWorldPosition.y >= position.y - size / 2 && mouseWorldPosition.y <= position.y + size / 2) {
+        std::string neededTypes;
+        for (int type : typeOfUnitsNeeded) {
+            neededTypes += std::to_string(type) + ", ";
+        }
+
+        int textWidth = MeasureText(neededTypes.c_str(), 20);
+        DrawRectangle(position.x - textWidth / 2 - 5, position.y - size / 2 - 30, textWidth + 10, 25, BLACK);
+        DrawText(neededTypes.c_str(), position.x - textWidth / 2, position.y - size / 2 - 27, 20, WHITE);
+    }
 }
 
 void incentives::die() {

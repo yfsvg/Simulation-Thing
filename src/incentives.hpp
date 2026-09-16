@@ -16,6 +16,9 @@ class incentives {
         // Lower interest and high difficulty are prioritized last
         // interst to difficulty ratio decides how appealing the incentive is
 
+        // Type of units needed
+        std::vector<int> typeOfUnitsNeeded;
+
         
 
         incentives(int id, Vector2 position, float interest, float difficulty);
@@ -25,7 +28,7 @@ class incentives {
         float getDifficulty();
         int getID();
 
-        void draw();
+        void draw(Vector2 mouseWorldPosition);
         void die();
 
         bool isFound();

@@ -1,6 +1,5 @@
 #include <math.h>
 #include <string>
-#include <random>
 #include <cmath>
 #include <vector>
 #include <algorithm>
@@ -14,18 +13,11 @@
 
 std::vector<incentives> sharedIncentivesFound;
 
-int randomNum(int min, int max) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> distrib(min, max);
-    return distrib(gen);
-}
-
-
-unit::unit(float inputId, Vector2 inputPosition) {
+unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
     position = inputPosition;
     id = inputId;
     size = 45.0f;
+    currentType = typeInput;
     // in degrees. Start from right, go ccw
     direction = randomNum(0, 359) + 0.0f;
     velocity = randomNum(0, 20) + 0.0f;
@@ -44,6 +36,8 @@ unit::unit(float inputId, Vector2 inputPosition) {
     vision = 5;
     explorationRadius = 3000;
 
+    investigatingOrNo = false;
+
     incentivesFoundInSession.clear();
 }
 
@@ -61,7 +55,8 @@ float unit::getID() {
 void unit::draw() {
     Rectangle drawingUnit = {position.x, position.y, size, size};
     Vector2 drawingUnitOrigin = {size / 2.0f, size / 2.0f};
-    DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, WHITE);
+    std::vector<Color> colorsOfCourse = {WHITE, RED, GREEN, BLUE, YELLOW};
+    DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, colorsOfCourse[currentType]);
 
     int fontSize = 20;
     int textWidth = MeasureText(idAsString.c_str(), fontSize);
@@ -250,8 +245,9 @@ void unit::goExploreTarget(int totalUnits) {
     };
 }
 
-void unit::goExplore(int totalUnits) {
+void unit::goExplore(int totalUnits, bool investigatingOrNoInput) {
     currentState = unitState::Exploring;
+    investigatingOrNo = investigatingOrNoInput;
     goExploreTarget(totalUnits);
 }
 

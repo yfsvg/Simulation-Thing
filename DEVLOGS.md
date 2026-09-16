@@ -12,3 +12,6 @@ Secondly, made the initial exploration burst behavior where each unit manages a 
 Lastly, implemented the vision tiles. Right now its just mainly for show and to demonstrate where the bots have went, but it will be useful in the future for if it gets turned into a game and theres unknown info.
 
 Also in general just numerous small improvements to all sorts of systems very productive day.
+
+# September 15
+Primarily just a conceptual working day

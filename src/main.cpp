@@ -18,10 +18,47 @@ float mapHeight = 10000;
 
 std::vector<std::vector<bool>> exploredTiles;
 
-bool exploringOrNo = true;
+bool cuddled = true;
+enum class groupState { // Defines the behavior of the group as a whole, what theyre doing
+    CuddlingBeforeExploration,
+    CuddlingBeforeInvestigation,
+    Exploring, // Looking around
+    Investigating // Doing their assigned tasks. After their assigned tasks are finished, they return to hang out before cuddling
+};
+groupState groupBehavior;
+
+std::vector<std::string> allUnitTypes = {
+    "Scout",
+    "Drill",
+    "Imaging",
+    "Climate",
+    "Comm"
+};
 
 Camera2D camera = {0};
 float cameraSpeed = 400.0f;
+
+// During the exploration phase, reward bots for looking through the most empty land
+// However, this reward system happens during the recongregation phase, NOT on individual execution.
+// After the initial random burst (Which doesnt really matter because everything is unexplored anyways)
+// The central planning system gets a list of where its eplxored (exploredTiles) and which incentives its found (sharedIncentivesFound)
+
+
+// "UNCHARTED TERRITORY" IS A GLOBAL PROPERTY THAT ALL UNITS MUST KNOW!!!!
+
+// We can simulate being under intermittent/limited connectivity as a defense for not constantly using radio.
+
+// Need to develop a standardized time system to help with decision making in tasking robots to do tasks.
+// Take into consideration the time it takes to get to the place (Distance to center, calculate as time), then mult by 2 because its a 1 way trip
+// Then take into consideration the amount of time it would take to complete it before the day ends.
+// First, assign the tasks with the highest interest first.
+// One idea to assign the tasks would be, multiplying each interest value to a certain amount and then assigning (int)(interst) bots to the area.
+// lets say the multiple is two for now.
+// DO NOT make them start working on the task or whatever. As of right now, 
+
+// Actually, scrap that. Because most tasks done by real life mars rovers aren't really parallizable, have most tasks be done by one bot
+// However, some of the bots will be specialized. Specialization types: 1. Scout 2. Drilla 3. Climate analysis 4. imaging 5. Communication back to earth
+// All share the same base powers so they can all do exporation work, although in the future maybe cosnider making the specialized ones less risk-taking
 
 
 void initCamera() {
@@ -30,7 +67,6 @@ void initCamera() {
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 }
-
 
 void cameraMovement() {
     float dt = GetFrameTime();
@@ -100,7 +136,7 @@ void drawBG() {
 }
 
 
-int randomNumMain(int min, int max) {
+int randomNum(int min, int max) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     std::uniform_int_distribution<int> distrib(min, max);
@@ -112,14 +148,17 @@ int main(void) {
     InitWindow(800, 800, "Simulation");
     SetTargetFPS(60);
 
+    groupBehavior = groupState::Investigating;
+
     std::vector<unit> allUnits;
     std::vector<incentives> allIncentives;
     // Just the IDs, use the IDs as reference to get the actual data from the full incentive array
     int totalIncentives = 100;
 
     for (int i = 0; i < totalIncentives; i++) {
-        Vector2 newPos = { (float)randomNumMain(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNumMain(mapHeight * -0.5f, mapHeight * 0.5f) };
-        incentives newIncentive = incentives((int)(allIncentives.size() + 1), newPos, randomNumMain(0, 1000)/100.0f, randomNumMain(0, 1000)/100.0f);
+        Vector2 newPos = { (float)randomNum(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNum(mapHeight * -0.5f, mapHeight * 0.5f) };
+        incentives newIncentive = incentives((int)(allIncentives.size() + 1), newPos, randomNum(0, 1000)/100.0f, randomNum(0, 1000)/100.0f);
+        // Creating the incentives 
         allIncentives.push_back(newIncentive);
     }
 
@@ -144,14 +183,30 @@ int main(void) {
         ClearBackground(Color{25, 25, 25, 255});
 
         // Pressing C makes units, adds them to the pile.
+        // Sorry about this.
         if (IsKeyPressed(KEY_C)) {
-            unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0});
-            allUnits.push_back(newUnit);
+            if (IsKeyDown(KEY_TWO)) {
+                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 1);
+                allUnits.push_back(newUnit);
+            } else if (IsKeyDown(KEY_THREE)) {
+                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 2);
+                allUnits.push_back(newUnit);
+            } else if (IsKeyDown(KEY_FOUR)) {
+                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 3);
+                allUnits.push_back(newUnit);
+            } else if (IsKeyDown(KEY_FIVE)) {
+                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 4);
+                allUnits.push_back(newUnit);
+            } else {
+                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 0);
+                allUnits.push_back(newUnit);
+            }
+            
         }
 
         // Pressing X makes them go back into cuddle pile
         if (IsKeyPressed(KEY_X)) {
-            if (exploringOrNo) {
+            if (!cuddled) {
                 float closestSquare = pow(std::ceil(std::sqrt(allUnits.size())), 2);
 
                 cuddleGrid.clear();
@@ -167,21 +222,27 @@ int main(void) {
                 for (unit& oneUnit : allUnits) {
                     oneUnit.cuddle();
                 }
-                
+
+                if (groupBehavior == groupState::Exploring) groupBehavior = groupState::CuddlingBeforeInvestigation;
+                if (groupBehavior == groupState::Investigating) groupBehavior = groupState::CuddlingBeforeExploration;                
 
             } else {
+                if (groupBehavior == groupState::CuddlingBeforeInvestigation) groupBehavior = groupState::Investigating;
+                if (groupBehavior == groupState::CuddlingBeforeExploration) groupBehavior = groupState::Exploring;  
+
                 // Start exploring!
                 for (unit& oneUnit : allUnits) {
-                    oneUnit.goExplore((int)allUnits.size());
+                    oneUnit.goExplore((int)allUnits.size(), (groupBehavior == groupState::Investigating));
                 }
             }
 
-            exploringOrNo = !exploringOrNo;
+            cuddled = !cuddled;
 
         }
         
         BeginMode2D(camera);
             drawBG();
+            Vector2 mouseWorldPosition = GetScreenToWorld2D(GetMousePosition(), camera);
             float deltaTime = GetFrameTime();
             for (unit& unitToDraw : allUnits) {
                 std::vector<unit> allUnitsToSend = allUnits;
@@ -194,15 +255,16 @@ int main(void) {
                     // Is it within 120 pixels? If so, remove incentive
                     Vector2 incentivePos = indivIncentive.getPosition();
 
-                    if (pow(unitPos.x - incentivePos.x, 2.0f) + pow(unitPos.y - incentivePos.y, 2) < pow(120, 2) && !indivIncentive.isFound()) {
+                    if (pow(unitPos.x - incentivePos.x, 2.0f) + pow(unitPos.y - incentivePos.y, 2) < pow(140, 2) && !indivIncentive.isFound()) {
                         indivIncentive.die();
                         // Tell the unit qbout it you found one
+                        unitToDraw.incentivesFoundInSession.push_back(indivIncentive);
                     }
                 }
             }
 
             for (incentives& indivIncentive : allIncentives) {
-                indivIncentive.draw();
+                indivIncentive.draw(mouseWorldPosition);
             }
         EndMode2D();
 
