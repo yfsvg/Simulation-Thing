@@ -14,4 +14,8 @@ Lastly, implemented the vision tiles. Right now its just mainly for show and to 
 Also in general just numerous small improvements to all sorts of systems very productive day.
 
 # September 15
-Primarily just a conceptual working day
+Today was definitely more of a conceptual work day, reason being after doing some more research regarding what Mars rovers actually do, I've realized that there are a LOT of issues with my representation of tasks being done. Primarily, that tasks done by a swarm of drones won't really be parallizable so whats needed is specialization in roles.
+
+Because of this, I needed to change a lot of things, starting off with specialized role assignments (indicated by different unit colors) and different incentive requirements (indicated by the text box above when hovered). Each incentive would only need those # units to come together and work. Would probably also make planning easier.
+
+Speaking of planning, also started basic work on a collective brain file that would determine priorities and assign them to the bots but no progress there yet.
