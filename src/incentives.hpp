@@ -19,8 +19,6 @@ class incentives {
         // Type of units needed
         std::vector<int> typeOfUnitsNeeded;
 
-        
-
         incentives(int id, Vector2 position, float interest, float difficulty);
 
         Vector2 getPosition();

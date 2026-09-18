@@ -19,3 +19,12 @@ Today was definitely more of a conceptual work day, reason being after doing som
 Because of this, I needed to change a lot of things, starting off with specialized role assignments (indicated by different unit colors) and different incentive requirements (indicated by the text box above when hovered). Each incentive would only need those # units to come together and work. Would probably also make planning easier.
 
 Speaking of planning, also started basic work on a collective brain file that would determine priorities and assign them to the bots but no progress there yet.
+
+# September 16-17th
+Combined into one session because of how massive the change is. The primary difference that I'm tryign to build up towards basically is that instead of randomly going to points, the bots will fall into a predictable cycle of exploring, finding incentives, and then coming back, making a priority list, assigning tasks, and then going back out to visit them. 
+
+I've been working on the incentive list for a long time and its hard as hell!! I made some very difficult to change architectural decisions and hard coded a lot of the movemeent decision making to be totally random at first because I just wanted to see something happen like 5 days ago. But thats coming back and biting me in the ass once i actually need the bots go to somewhere worthwhile.
+
+I was having a lot of issues with desyncing between the units and the group as a whole, so to end off the two days I made a debug state tracker that shows the priority scores of each incentive and also the state/type of each unit. Its this decoupling thats really messing with me so hopefully this quick tool is gonna help fix that over the weekend.
+
+# September 18th

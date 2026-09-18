@@ -10,8 +10,17 @@
 
 #include "main.hpp"
 #include "unit.hpp"
+#include "unitMind.hpp"
 
-std::vector<incentives> sharedIncentivesFound;
+// A NEW SYSTEM FOR POSITIONAL TARGETS!!
+// rather than just a point to go to, they have a list of points to go to as priorities so they can be programmed to do
+// multiple tasks during each meetup. They also have a list of time that they need to be there for to do their tasks.
+
+
+// how about the greedy system and then a comparison to a system that divides the interest by the how scarce the bots 
+// are in that category. For example, if a swarm has a lot of type 1 and only 3 type 2s, theyd like to take on a task 
+// with interest 4 that needs 2 type 1s more than a task with interest 5 that needs all 3 type 2s
+// Could be a potentially interesting idea, maybe implement later as a comparison.
 
 unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
     position = inputPosition;
@@ -25,6 +34,9 @@ unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
 
     currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
     currentDirectionalGoal = std::atan2(currentPositionalGoal.y - position.y, currentPositionalGoal.x - position.x) * (180.0f / 3.1415926535897932384f);
+
+    futurePositionalGoals.clear();
+    timeInSSpentAtFutureGoal.clear();
 
     idAsString = std::to_string(id);
     idAsString = idAsString.substr(0, idAsString.find('.'));
@@ -56,6 +68,9 @@ void unit::draw() {
     Rectangle drawingUnit = {position.x, position.y, size, size};
     Vector2 drawingUnitOrigin = {size / 2.0f, size / 2.0f};
     std::vector<Color> colorsOfCourse = {WHITE, RED, GREEN, BLUE, YELLOW};
+    if (currentState == unitState::Cuddling) {
+        direction = 90;
+    }
     DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, colorsOfCourse[currentType]);
 
     int fontSize = 20;
@@ -111,11 +126,14 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     float desiredX = goalX + repulsionForces.x;
     float desiredY = goalY + repulsionForces.y;
 
+    // Snapping behavior
     if (distance < 10.0f && currentState == unitState::CuddlingUp) {
         direction = 90;
         position.x = currentPositionalGoal.x;
         position.y = currentPositionalGoal.y;
         velocity = 0;
+        currentState = unitState::Cuddling;
+        totalBackAtCuddle++;
     } else {
         currentDirectionalGoal = std::atan2(desiredY, desiredX) * (180.0f / 3.1415926535897932384f);
     }
@@ -133,7 +151,7 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     if (currentState == unitState::Exploring) {
         personalSpace = 125.0f;
         repelStrength = 3.0f;
-    } else if (currentState == unitState::CuddlingUp) {
+    } else if (currentState == unitState::CuddlingUp || currentState == unitState::Cuddling) {
         personalSpace = 0.0f;
         repelStrength = 0.0f;
     } else if (currentState == unitState::Returning) {
@@ -145,8 +163,28 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     if (currentState == unitState::HangingOut && distance < 20.0f) {
         currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
     } else if (distance < 40.0f) {
-        if (currentState == unitState::Exploring) {
+        if ((currentState == unitState::Exploring) && !investigatingOrNo) {
             goExploreTarget((int)(allOtherUnits.size()));
+        } else if (investigatingOrNo) {
+            // In the future, IN HERE we make the guy wait
+            if (futurePositionalGoals.empty()) {
+                currentState = unitState::HangingOut;
+                currentPositionalGoal = {0.0f, 0.0f};
+            } else {
+                futurePositionalGoals.erase(futurePositionalGoals.begin());
+                if (!timeInSSpentAtFutureGoal.empty()) {
+                    timeInSSpentAtFutureGoal.erase(timeInSSpentAtFutureGoal.begin());
+                }
+
+                if (futurePositionalGoals.empty()) {
+                    currentState = unitState::HangingOut;
+                    currentPositionalGoal = {0.0f, 0.0f};
+                } else {
+                    currentPositionalGoal = futurePositionalGoals[0];
+                }
+            }
+            // knock off the incentive they just went to, and then set positional goal back to the next item in line
+            // If incentive list is size 0, then start hanging out back at the center to charge up and chill
         }
     } else if (distance < 50.0f && currentState == unitState::Returning) {
         currentState = unitState::CuddlingUp;
@@ -207,7 +245,7 @@ void unit::claimCuddleSpot() {
     }
 
     // if (bestRow == -1) {return;
-
+    
     // Claiming
     cuddleGrid[bestRow][bestCol] = true;
 
@@ -248,9 +286,17 @@ void unit::goExploreTarget(int totalUnits) {
 void unit::goExplore(int totalUnits, bool investigatingOrNoInput) {
     currentState = unitState::Exploring;
     investigatingOrNo = investigatingOrNoInput;
-    goExploreTarget(totalUnits);
+    if (!investigatingOrNo) {
+        goExploreTarget(totalUnits);
+    } else {
+        // Go to 
+    }
 }
 
 void unit::findOne(incentives incentiveFound) {
     incentivesFoundInSession.push_back(incentiveFound);
+}
+
+void unit::addToGoal(Vector2 goalAdd) {
+    futurePositionalGoals.push_back(goalAdd);
 }

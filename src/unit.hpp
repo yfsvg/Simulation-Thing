@@ -4,7 +4,6 @@
 #include "raylib.h"
 
 #include "incentives.hpp"
-extern std::vector<incentives> sharedIncentivesFound;
 
 class unit {
     public:
@@ -13,19 +12,14 @@ class unit {
 
         Vector2 position;
 
-        float size;
-        float direction;
-        float velocity;
-        float acceleration;
-
         float personalSpace;
         float repelStrength;
 
         Vector2 currentPositionalGoal;
         float currentDirectionalGoal;
+        std::vector<Vector2> futurePositionalGoals;
+        std::vector<float> timeInSSpentAtFutureGoal;
         bool investigatingOrNo;
-
-        int vision;
 
         int explorationRadius; // Controls how far away they will look during scouting phase
 
@@ -48,13 +42,11 @@ class unit {
         Vector2 getPosition();
         float getID();
 
-        void claimCuddleSpot();
+        void addToGoal(Vector2 goalAdd);
+
         void goExplore(int totalUnits, bool investigatingOrNo
             // const std::vector<int>& checkTheseOutIds // IDs into the central incentives store, passed by const ref to avoid a copy
         );
-        void goExploreTarget(int totalUnits);
-
-        void findOne(incentives incentiveFound);
 
         enum class unitState {
             Exploring, // Edit the explroing phase such that the random positional goals are placed within a 360 / n degree slice of a circle of radius explorationRadius.
@@ -67,5 +59,18 @@ class unit {
 
         // basd on the one in main.hpp
         int currentType;
+
+
+    private:
+        float size;
+        float direction;
+        float velocity;
+        float acceleration;
+        int vision;
+
+        void claimCuddleSpot();
+        void goExploreTarget(int totalUnits);
+        void findOne(incentives incentiveFound);
+
 
 };

@@ -10,13 +10,15 @@
 
 #include "main.hpp"
 #include "unit.hpp"
-#include "incentives.hpp"
+#include "unitMind.hpp"
 
 std::vector<std::vector<bool>> cuddleGrid;
 float mapWidth = 10000;
 float mapHeight = 10000;
 
-std::vector<std::vector<bool>> exploredTiles;
+int totalBackAtCuddle = 0;
+
+bool waitingForAllToReturn = false;
 
 bool cuddled = true;
 enum class groupState { // Defines the behavior of the group as a whole, what theyre doing
@@ -67,6 +69,69 @@ void initCamera() {
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 }
+
+
+void drawDebugInfo(const std::vector<unit>& allUnits, const std::vector<incentives>& allIncentives) {
+    static float debugScroll = 0.0f;
+
+    const float panelY = 0.0f;
+    const float panelW = 360.0f;
+    const float panelH = 760.0f;
+    const float padding = 12.0f;
+    const float contentTop = panelY + 96.0f;
+
+    auto groupStateToString = [](groupState state) {
+        switch (state) {
+            case groupState::CuddlingBeforeExploration: return "Cuddling -> Explore";
+            case groupState::CuddlingBeforeInvestigation: return "Cuddling -> Investigate";
+            case groupState::Exploring: return "Exploring";
+            case groupState::Investigating: return "Investigating";
+            default: return "Unknown";
+        }
+    };
+
+    auto unitStateToString = [](unit::unitState state) {
+        switch (state) {
+            case unit::unitState::Exploring: return "Exploring";
+            case unit::unitState::Returning: return "Returning";
+            case unit::unitState::CuddlingUp: return "Cuddling Up";
+            case unit::unitState::Cuddling: return "Cuddling";
+            case unit::unitState::HangingOut: return "Hanging Out";
+            default: return "Unknown";
+        }
+    };
+
+    debugScroll += GetMouseWheelMove() * 22.0f;
+    debugScroll = std::clamp(debugScroll, -160.0f, 160.0f);
+
+    Rectangle panelRect = { 0, panelY, panelW, panelH };
+    DrawRectangleRec(panelRect, Color{ 0, 0, 0, 200 });
+
+    DrawText("DEBUG STATE", padding, (int)panelY + 12, 22, WHITE);
+    DrawText(TextFormat("Group: %s", groupStateToString(groupBehavior)), padding, (int)panelY + 40, 18, RAYWHITE);
+    DrawText(TextFormat("Units: %d", (int)allUnits.size()), padding, (int)panelY + 62, 18, RAYWHITE);
+
+    float y = contentTop;
+    DrawText("UNITS", padding, (int)y, 18, RAYWHITE);
+    y += 22.0f;
+
+    for (const unit& oneUnit : allUnits) {
+        std::string unitText = TextFormat("U%d [%s] %s", (int)oneUnit.id, allUnitTypes[std::clamp((int)oneUnit.currentType, 0, (int)allUnitTypes.size() - 1)].c_str(), unitStateToString(oneUnit.currentState));
+        DrawText(unitText.c_str(), padding, (int)(y + debugScroll), 16, WHITE);
+        y += 18.0f;
+
+        std::string goalText = TextFormat("  Goal: (%.0f, %.0f)", oneUnit.currentPositionalGoal.x, oneUnit.currentPositionalGoal.y);
+        DrawText(goalText.c_str(), padding + 5, (int)(y + debugScroll), 14, LIGHTGRAY);
+        y += 16.0f;
+
+        std::string foundText = TextFormat("  Found: %d | Assigned: %d", (int)oneUnit.incentivesFoundInSession.size(), (int)oneUnit.assignedIncentiveIds.size());
+        DrawText(foundText.c_str(), padding + 5, (int)(y + debugScroll), 14, LIGHTGRAY);
+        y += 18.0f;
+    }
+}
+
+
+
 
 void cameraMovement() {
     float dt = GetFrameTime();
@@ -204,9 +269,16 @@ int main(void) {
             
         }
 
+        if (cuddled && totalBackAtCuddle == allUnits.size()) {
+            // INVOKE UNIT MIND
+            assignIncentives(allUnits);
+        }
+
         // Pressing X makes them go back into cuddle pile
         if (IsKeyPressed(KEY_X)) {
             if (!cuddled) {
+                waitingForAllToReturn = true;
+
                 float closestSquare = pow(std::ceil(std::sqrt(allUnits.size())), 2);
 
                 cuddleGrid.clear();
@@ -231,6 +303,7 @@ int main(void) {
                 if (groupBehavior == groupState::CuddlingBeforeExploration) groupBehavior = groupState::Exploring;  
 
                 // Start exploring!
+                totalBackAtCuddle = 0;
                 for (unit& oneUnit : allUnits) {
                     oneUnit.goExplore((int)allUnits.size(), (groupBehavior == groupState::Investigating));
                 }
@@ -240,6 +313,10 @@ int main(void) {
 
         }
         
+
+
+
+
         BeginMode2D(camera);
             drawBG();
             Vector2 mouseWorldPosition = GetScreenToWorld2D(GetMousePosition(), camera);
@@ -268,9 +345,7 @@ int main(void) {
             }
         EndMode2D();
 
-        
-        // Detect to see if any units are close enough to any of the incentives.
-        
+        drawDebugInfo(allUnits, allIncentives);
 
         EndDrawing();
     }
