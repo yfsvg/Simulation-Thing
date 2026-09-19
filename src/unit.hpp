@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 #include "raylib.h"
 
@@ -30,7 +31,7 @@ class unit {
         // Assigned targets: just IDs into the central incentive store, not copies of the data.
         // Avoids duplicating incentive data per-unit and keeps a single source of truth.
         std::vector<int> assignedIncentiveIds;
-        
+
 
         unit(float id, Vector2 position, int typeInp);
 
@@ -42,23 +43,32 @@ class unit {
         Vector2 getPosition();
         float getID();
 
+        // Sets the unit's own currentState to match the group's phase.
+        // For CuddlingBeforeExploration / CuddlingBeforeInvestigation this
+        // kicks off convergence (equivalent to calling cuddle()); for
+        // Exploring / Investigating this kicks off the corresponding
+        // outward behavior (equivalent to calling goExplore()). This is the
+        // ONLY place a unit's phase should be driven from the outside.
+        // totalUnits is only used by the Exploring/Investigating cases (to
+        // divide up scouting slices); pass 0 when it doesn't apply.
+        void setGroupState(groupState inputGroupBehavior, int totalUnits = 0);
+
         void addToGoal(Vector2 goalAdd);
 
         void goExplore(int totalUnits, bool investigatingOrNo
             // const std::vector<int>& checkTheseOutIds // IDs into the central incentives store, passed by const ref to avoid a copy
         );
 
-        enum class unitState {
-            Exploring, // Edit the explroing phase such that the random positional goals are placed within a 360 / n degree slice of a circle of radius explorationRadius.
-            Returning, // Moving towards homey
-            CuddlingUp, // Close enough to the home such that it can start to find the most inner, free space inside of the square.
-            Cuddling, // in their resting state
-            HangingOut, // Staying within ~50 pixels radius of the center. Happens at the start of the simulation so they dont go running off. Their positional goal is just random points within the radius
-        };
-        unitState currentState;
+        // True once this unit has physically arrived at its cuddle spot and
+        // settled back into HangingOut. Used by main.cpp to know when the
+        // whole swarm has finished converging.
+        bool hasReturnedToCuddle() const;
+
+        groupState currentState;
 
         // basd on the one in main.hpp
         int currentType;
+
 
 
     private:
@@ -67,10 +77,9 @@ class unit {
         float velocity;
         float acceleration;
         int vision;
+        bool hasArrivedAtCuddle;
 
         void claimCuddleSpot();
         void goExploreTarget(int totalUnits);
         void findOne(incentives incentiveFound);
-
-
 };

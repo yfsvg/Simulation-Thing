@@ -28,3 +28,6 @@ I've been working on the incentive list for a long time and its hard as hell!! I
 I was having a lot of issues with desyncing between the units and the group as a whole, so to end off the two days I made a debug state tracker that shows the priority scores of each incentive and also the state/type of each unit. Its this decoupling thats really messing with me so hopefully this quick tool is gonna help fix that over the weekend.
 
 # September 18th
+Came to the realization that one of the biggest things that was biting my ass while working on this was the fact that I didn't actually need a unitState for the bot, since they're all shared across each bot. So there is no need for an individual state, and it was one of the biggest things that was holding me down. I struggled with this a LOT and even with the help of Claude to help me debug, so I eventually just tore everything out and created a new centralized groupstate system that takes in commands directly from main and assigns to all members. This helps remove the decoupling risk since how centralized it is. 
+
+Also another thing was updating the debug screen to be more simple and also include scrolling functionality. 

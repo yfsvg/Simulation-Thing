@@ -18,12 +18,18 @@ std::vector<std::vector<bool>> exploredTiles;
 
 void sortByInterest() {
     std::sort(sharedIncentivesFound.begin(), sharedIncentivesFound.end(), [](const incentives& a, const incentives& b) {
-        return a.interest < b.interest;
+        if (a.interest != b.interest) return a.interest > b.interest;
+        return a.difficulty < b.difficulty;
     });
 }
 
 // Takes in every unit, checks inventory, then assigns it to those units
 void assignIncentives(std::vector<unit>& allUnits) {
+    for (unit& indivUnit : allUnits) {
+        indivUnit.assignedIncentiveIds.clear();
+        indivUnit.futurePositionalGoals.clear();
+    }
+
     // Count the units types to see what we have and what we dont have
     std::vector<int> typeInventory = {0, 0, 0, 0, 0};
     for (unit indivUnit : allUnits) {
@@ -69,9 +75,15 @@ void assignIncentives(std::vector<unit>& allUnits) {
                 }
 
                 candidateUnit.assignedIncentiveIds.push_back(sharedIncentivesFound[i].id);
+                candidateUnit.addToGoal(sharedIncentivesFound[i].getPosition());
                 typeInventory[indivTypeNeeded]--;
                 break;
             }
         }
+        
     }
+
+
+
+
 }

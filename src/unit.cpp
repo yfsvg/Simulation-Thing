@@ -22,6 +22,7 @@
 // with interest 4 that needs 2 type 1s more than a task with interest 5 that needs all 3 type 2s
 // Could be a potentially interesting idea, maybe implement later as a comparison.
 
+
 unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
     position = inputPosition;
     id = inputId;
@@ -41,8 +42,6 @@ unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
     idAsString = std::to_string(id);
     idAsString = idAsString.substr(0, idAsString.find('.'));
 
-    currentState = unitState::HangingOut;
-
     personalSpace = 125.0f; // radius at which repulsion kicks in
     repelStrength = 3.0f; // How powerful the repulsion is. Probably should be reducing during cuddling or returning stages so they are more willing to closer
     vision = 5;
@@ -51,7 +50,12 @@ unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
     investigatingOrNo = false;
 
     incentivesFoundInSession.clear();
+
+    // Units always start out while hanging out near the center until the first X press moves the whole group into the next stage
+    currentState = groupState::HangingOut;
+    hasArrivedAtCuddle = false;
 }
+
 
 Vector2 unit::getPosition() {
     return position;
@@ -68,10 +72,12 @@ void unit::draw() {
     Rectangle drawingUnit = {position.x, position.y, size, size};
     Vector2 drawingUnitOrigin = {size / 2.0f, size / 2.0f};
     std::vector<Color> colorsOfCourse = {WHITE, RED, GREEN, BLUE, YELLOW};
-    if (currentState == unitState::Cuddling) {
-        direction = 90;
+    if (hasArrivedAtCuddle) {
+        DrawRectanglePro(drawingUnit, drawingUnitOrigin, 90, colorsOfCourse[currentType]);
+    } else {
+        DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, colorsOfCourse[currentType]);
     }
-    DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, colorsOfCourse[currentType]);
+
 
     int fontSize = 20;
     int textWidth = MeasureText(idAsString.c_str(), fontSize);
@@ -81,9 +87,13 @@ void unit::draw() {
 }
 
 
+
+
+
+
+
+
 void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
-    // !!!!EXPLORING BEHAVIOR!!!!
-    // !!!!EXPLORING BEHAVIOR!!!!
 
     Vector2 myPos = getPosition();
 
@@ -96,7 +106,6 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     float goalY = (distance > 0.0001f) ? dy / distance : 0.0f;
 
     // MRE-CCIC's rendezvous/comms structure, feeding into an MRTA task allocation step at each rendezvous
-
 
     Vector2 repulsionForces = {0.0f, 0.0f};
 
@@ -126,14 +135,15 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     float desiredX = goalX + repulsionForces.x;
     float desiredY = goalY + repulsionForces.y;
 
-    // Snapping behavior
-    if (distance < 10.0f && currentState == unitState::CuddlingUp) {
+    // Snapping behavior, one of the biggest issues was 
+    if (distance < 20.0f && currentState == groupState::CuddlingProcess) {
         direction = 90;
         position.x = currentPositionalGoal.x;
         position.y = currentPositionalGoal.y;
         velocity = 0;
-        currentState = unitState::Cuddling;
-        totalBackAtCuddle++;
+        if (!hasArrivedAtCuddle) {
+            hasArrivedAtCuddle = true;
+        }
     } else {
         currentDirectionalGoal = std::atan2(desiredY, desiredX) * (180.0f / 3.1415926535897932384f);
     }
@@ -148,27 +158,30 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     direction += diff * 2.0f * deltaTime;
 
 
-    if (currentState == unitState::Exploring) {
-        personalSpace = 125.0f;
-        repelStrength = 3.0f;
-    } else if (currentState == unitState::CuddlingUp || currentState == unitState::Cuddling) {
+    if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
+        personalSpace = 150.0f;
+        repelStrength = 4.0f;
+        hasArrivedAtCuddle = false;
+    } else if (currentState == groupState::CuddlingProcess || currentState == groupState::CuddlingBeforeExploration || currentState == groupState::CuddlingBeforeInvestigation) {
         personalSpace = 0.0f;
         repelStrength = 0.0f;
-    } else if (currentState == unitState::Returning) {
+    } else if (currentState == groupState::Returning) {
         personalSpace = 22.5f;
         repelStrength = 1.0f;
     }
     
 
-    if (currentState == unitState::HangingOut && distance < 20.0f) {
+    if (currentState == groupState::HangingOut && distance < 20.0f) {
         currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
     } else if (distance < 40.0f) {
-        if ((currentState == unitState::Exploring) && !investigatingOrNo) {
+        if (currentState == groupState::Exploring) {
             goExploreTarget((int)(allOtherUnits.size()));
-        } else if (investigatingOrNo) {
+        } 
+        
+        if (currentState == groupState::Investigating) {
             // In the future, IN HERE we make the guy wait
             if (futurePositionalGoals.empty()) {
-                currentState = unitState::HangingOut;
+                currentState = groupState::HangingOut;
                 currentPositionalGoal = {0.0f, 0.0f};
             } else {
                 futurePositionalGoals.erase(futurePositionalGoals.begin());
@@ -176,18 +189,16 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
                     timeInSSpentAtFutureGoal.erase(timeInSSpentAtFutureGoal.begin());
                 }
 
-                if (futurePositionalGoals.empty()) {
-                    currentState = unitState::HangingOut;
-                    currentPositionalGoal = {0.0f, 0.0f};
-                } else {
+                // Assume that the one in tick checker will handle it maybe?
+                if (!futurePositionalGoals.empty()) {
                     currentPositionalGoal = futurePositionalGoals[0];
                 }
             }
             // knock off the incentive they just went to, and then set positional goal back to the next item in line
             // If incentive list is size 0, then start hanging out back at the center to charge up and chill
         }
-    } else if (distance < 50.0f && currentState == unitState::Returning) {
-        currentState = unitState::CuddlingUp;
+    } else if (distance < 50.0f && currentState == groupState::Returning) {
+        currentState = groupState::CuddlingProcess;
         // now that they are sufficiently close, make them go towards the innermost vacant "false" spot in the cuddlegrid. Each grid is separated 50x50.
     }
 
@@ -244,8 +255,8 @@ void unit::claimCuddleSpot() {
         }
     }
 
-    // if (bestRow == -1) {return;
-    
+    if (bestRow == -1) return;
+
     // Claiming
     cuddleGrid[bestRow][bestCol] = true;
 
@@ -254,11 +265,17 @@ void unit::claimCuddleSpot() {
 }
 
 void unit::cuddle() {
-    if (currentState == unitState::Exploring) {
-        currentState = unitState::Returning;
+    if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
+        currentState = groupState::Returning;
         for (int i = 0; i < incentivesFoundInSession.size(); i++) {
-            // Not necessary to check for uniqueness because each incentive can only be discovered once anyways
-            sharedIncentivesFound.push_back(incentivesFoundInSession[i]);
+            bool alreadyShared = std::find_if(
+                sharedIncentivesFound.begin(),
+                sharedIncentivesFound.end(),
+                [&](const incentives& foundIncentive) {
+                    return foundIncentive.id == incentivesFoundInSession[i].id;
+                }
+            ) != sharedIncentivesFound.end();
+            if (!alreadyShared) sharedIncentivesFound.push_back(incentivesFoundInSession[i]);
         }
         claimCuddleSpot();
     }
@@ -284,7 +301,7 @@ void unit::goExploreTarget(int totalUnits) {
 }
 
 void unit::goExplore(int totalUnits, bool investigatingOrNoInput) {
-    currentState = unitState::Exploring;
+    currentState = groupState::Exploring;
     investigatingOrNo = investigatingOrNoInput;
     if (!investigatingOrNo) {
         goExploreTarget(totalUnits);
@@ -298,5 +315,50 @@ void unit::findOne(incentives incentiveFound) {
 }
 
 void unit::addToGoal(Vector2 goalAdd) {
+    if (futurePositionalGoals.empty()) {
+        currentPositionalGoal = goalAdd;
+    }
+
     futurePositionalGoals.push_back(goalAdd);
+}
+
+
+
+bool unit::hasReturnedToCuddle() const {
+    return currentState == groupState::CuddlingProcess && hasArrivedAtCuddle;
+}
+
+
+
+// This is now the ONLY place that drives a unit's phase from the outside.
+// changed from having stuff inside of unitstate / unit.cpp itself change because that can mess stuf fup
+
+void unit::setGroupState(groupState inputGroupBehavior, int totalUnits) {
+    switch (inputGroupBehavior) {
+        case groupState::CuddlingBeforeExploration:
+        case groupState::CuddlingBeforeInvestigation:
+            if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
+                cuddle();
+            } else {
+                currentState = groupState::Returning;
+                claimCuddleSpot();
+            }
+            break;
+
+        case groupState::Exploring:
+            goExplore(totalUnits, false);
+            break;
+
+        case groupState::Investigating:
+            // add with the incentive list later
+            goExplore(totalUnits, true);
+            break;
+
+        case groupState::HangingOut:
+        case groupState::Returning:
+        case groupState::CuddlingProcess:
+        default:
+            currentState = inputGroupBehavior;
+            break;
+    }
 }

@@ -16,18 +16,7 @@ std::vector<std::vector<bool>> cuddleGrid;
 float mapWidth = 10000;
 float mapHeight = 10000;
 
-int totalBackAtCuddle = 0;
-
-bool waitingForAllToReturn = false;
-
-bool cuddled = true;
-enum class groupState { // Defines the behavior of the group as a whole, what theyre doing
-    CuddlingBeforeExploration,
-    CuddlingBeforeInvestigation,
-    Exploring, // Looking around
-    Investigating // Doing their assigned tasks. After their assigned tasks are finished, they return to hang out before cuddling
-};
-groupState groupBehavior;
+groupState groupBehavior = groupState::HangingOut;
 
 std::vector<std::string> allUnitTypes = {
     "Scout",
@@ -76,60 +65,51 @@ void drawDebugInfo(const std::vector<unit>& allUnits, const std::vector<incentiv
 
     const float panelY = 0.0f;
     const float panelW = 360.0f;
-    const float panelH = 760.0f;
     const float padding = 12.0f;
     const float contentTop = panelY + 96.0f;
 
     auto groupStateToString = [](groupState state) {
         switch (state) {
-            case groupState::CuddlingBeforeExploration: return "Cuddling -> Explore";
-            case groupState::CuddlingBeforeInvestigation: return "Cuddling -> Investigate";
+            case groupState::CuddlingBeforeExploration: return "CuddlingBeforeExploration";
+            case groupState::CuddlingBeforeInvestigation: return "CuddlingBeforeInvestigation";
             case groupState::Exploring: return "Exploring";
             case groupState::Investigating: return "Investigating";
+            case groupState::HangingOut: return "Hanging Out";
+            case groupState::Returning: return "Returning";
+            case groupState::CuddlingProcess: return "Cuddling";
             default: return "Unknown";
-        }
-    };
-
-    auto unitStateToString = [](unit::unitState state) {
-        switch (state) {
-            case unit::unitState::Exploring: return "Exploring";
-            case unit::unitState::Returning: return "Returning";
-            case unit::unitState::CuddlingUp: return "Cuddling Up";
-            case unit::unitState::Cuddling: return "Cuddling";
-            case unit::unitState::HangingOut: return "Hanging Out";
-            default: return "Unknown";
+    
         }
     };
 
     debugScroll += GetMouseWheelMove() * 22.0f;
-    debugScroll = std::clamp(debugScroll, -160.0f, 160.0f);
+    debugScroll = std::clamp(debugScroll, 0.0f, 160.0f);
 
-    Rectangle panelRect = { 0, panelY, panelW, panelH };
+    Rectangle panelRect = { 0, panelY, panelW, (float)GetScreenHeight() };
     DrawRectangleRec(panelRect, Color{ 0, 0, 0, 200 });
 
-    DrawText("DEBUG STATE", padding, (int)panelY + 12, 22, WHITE);
-    DrawText(TextFormat("Group: %s", groupStateToString(groupBehavior)), padding, (int)panelY + 40, 18, RAYWHITE);
-    DrawText(TextFormat("Units: %d", (int)allUnits.size()), padding, (int)panelY + 62, 18, RAYWHITE);
+    DrawText("DEBUG STATE", padding, (int)panelY + 12 - debugScroll, 22, WHITE);
+    DrawText(TextFormat("Group: %s", groupStateToString(groupBehavior)), padding, (int)panelY + 40 - debugScroll, 18, RAYWHITE);
+    DrawText(TextFormat("Units: %d", (int)allUnits.size()), padding, (int)panelY + 62 - debugScroll, 18, RAYWHITE);
 
     float y = contentTop;
-    DrawText("UNITS", padding, (int)y, 18, RAYWHITE);
+    DrawText("UNITS", padding, (int)y - debugScroll, 18, RAYWHITE);
     y += 22.0f;
 
     for (const unit& oneUnit : allUnits) {
-        std::string unitText = TextFormat("U%d [%s] %s", (int)oneUnit.id, allUnitTypes[std::clamp((int)oneUnit.currentType, 0, (int)allUnitTypes.size() - 1)].c_str(), unitStateToString(oneUnit.currentState));
-        DrawText(unitText.c_str(), padding, (int)(y + debugScroll), 16, WHITE);
+        std::string unitText = TextFormat("U%d [%s] %s", (int)oneUnit.id, allUnitTypes[std::clamp((int)oneUnit.currentType, 0, (int)allUnitTypes.size() - 1)].c_str(), groupStateToString(oneUnit.currentState));
+        DrawText(unitText.c_str(), padding, (int)(y - debugScroll), 16, WHITE);
         y += 18.0f;
 
         std::string goalText = TextFormat("  Goal: (%.0f, %.0f)", oneUnit.currentPositionalGoal.x, oneUnit.currentPositionalGoal.y);
-        DrawText(goalText.c_str(), padding + 5, (int)(y + debugScroll), 14, LIGHTGRAY);
+        DrawText(goalText.c_str(), padding + 5, (int)(y - debugScroll), 14, LIGHTGRAY);
         y += 16.0f;
 
         std::string foundText = TextFormat("  Found: %d | Assigned: %d", (int)oneUnit.incentivesFoundInSession.size(), (int)oneUnit.assignedIncentiveIds.size());
-        DrawText(foundText.c_str(), padding + 5, (int)(y + debugScroll), 14, LIGHTGRAY);
+        DrawText(foundText.c_str(), padding + 5, (int)(y - debugScroll), 14, LIGHTGRAY);
         y += 18.0f;
     }
 }
-
 
 
 
@@ -208,12 +188,95 @@ int randomNum(int min, int max) {
     return distrib(gen);
 }
 
+// Everything that used to live inline in the KEY_X handler now lives here for centralizability and future modular use
+// advanceGroupState() is the single entry point since we alreqdy know the primary order at which the group state is going in
+// although maybe a setGroupState() function later? for other purposes
+
+static bool allUnitsCuddled(const std::vector<unit>& allUnits) {
+    bool returnVal = true;
+    for (unit indivUnit : allUnits) {
+        if (!indivUnit.hasReturnedToCuddle()) {
+            returnVal = false;
+        }
+    }
+
+    return returnVal;
+}
+
+static void cuddleSetup(std::vector<unit>& allUnits, groupState targetCuddleState) {
+    float closestSquare = pow(std::ceil(std::sqrt((float)allUnits.size())), 2);
+
+    cuddleGrid.clear();
+    for (int row = 0; row < (int)closestSquare; row++) {
+        std::vector<bool> toPush(closestSquare, false);
+        cuddleGrid.push_back(toPush);
+    }
+
+    groupBehavior = targetCuddleState;
+
+    for (unit& oneUnit : allUnits) {
+        oneUnit.setGroupState(groupBehavior);
+    }
+}
+
+// send ALL units outwards to  Exploring vs Investigating but right now theres actually no difference in behav
+static void beginOutward(std::vector<unit>& allUnits, bool investigating) {
+    groupBehavior = investigating ? groupState::Investigating : groupState::Exploring;
+
+    for (unit& oneUnit : allUnits) {
+        oneUnit.setGroupState(groupBehavior, (int)allUnits.size());
+    }
+}
+
+
+
+// The single entry point: call this once per X press. determines next phase based on an order
+// REFER TO MAIN.HPP LINES 13-20 FOR AN ABSTRACTED EXPLANATION OF HOW THE CYCLE WORKS
+// also no invest
+void advanceGroupState(std::vector<unit>& allUnits) {
+
+    switch (groupBehavior) {
+        case groupState::HangingOut:
+            cuddleSetup(allUnits, groupState::CuddlingBeforeExploration);
+            break;
+
+        case groupState::CuddlingBeforeExploration:
+            // Only allowed to proceed once all units are full
+            if (allUnitsCuddled(allUnits)) {
+                beginOutward(allUnits, /*investigating=*/false);
+            }
+            break;
+
+        case groupState::Exploring:
+            cuddleSetup(allUnits, groupState::CuddlingBeforeInvestigation);
+            break;
+
+        case groupState::CuddlingBeforeInvestigation:
+            if (allUnitsCuddled(allUnits)) {
+                beginOutward(allUnits, /*investigating=*/true);
+            }
+            break;
+
+        case groupState::Investigating:
+            cuddleSetup(allUnits, groupState::CuddlingBeforeExploration);
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+
+
+
+
+
+
 int main(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE); 
-    InitWindow(800, 800, "Simulation");
+    InitWindow(1200, 800, "Simulation");
     SetTargetFPS(60);
-
-    groupBehavior = groupState::Investigating;
 
     std::vector<unit> allUnits;
     std::vector<incentives> allIncentives;
@@ -248,82 +311,29 @@ int main(void) {
         ClearBackground(Color{25, 25, 25, 255});
 
         // Pressing C makes units, adds them to the pile.
-        // Sorry about this.
+        // You're welcome for this!
         if (IsKeyPressed(KEY_C)) {
-            if (IsKeyDown(KEY_TWO)) {
-                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 1);
-                allUnits.push_back(newUnit);
-            } else if (IsKeyDown(KEY_THREE)) {
-                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 2);
-                allUnits.push_back(newUnit);
-            } else if (IsKeyDown(KEY_FOUR)) {
-                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 3);
-                allUnits.push_back(newUnit);
-            } else if (IsKeyDown(KEY_FIVE)) {
-                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 4);
-                allUnits.push_back(newUnit);
-            } else {
-                unit newUnit = unit(allUnits.size() + 1, (Vector2){0, 0}, 0);
-                allUnits.push_back(newUnit);
-            }
-            
+            int inputType = 0;
+
+            if (IsKeyDown(KEY_TWO)) {inputType = 1;}
+            else if (IsKeyDown(KEY_THREE)) {inputType = 2;}
+            else if (IsKeyDown(KEY_FOUR)) {inputType = 3;}
+            else if (IsKeyDown(KEY_FIVE)) {inputType = 4;}
+
+            unit newUnit = unit((float)(allUnits.size() + 1), (Vector2){0, 0}, inputType);
+            newUnit.setGroupState(groupBehavior, (int)allUnits.size() + 1);
+            allUnits.push_back(newUnit);
         }
 
-        if (cuddled && totalBackAtCuddle == allUnits.size()) {
-            // INVOKE UNIT MIND
-            assignIncentives(allUnits);
-        }
-
-        // Pressing X makes them go back into cuddle pile
         if (IsKeyPressed(KEY_X)) {
-            if (!cuddled) {
-                waitingForAllToReturn = true;
-
-                float closestSquare = pow(std::ceil(std::sqrt(allUnits.size())), 2);
-
-                cuddleGrid.clear();
-                for (int row = 0; row < closestSquare; row++) {
-                    std::vector<bool> toPush = {};
-                    for (int col = 0; col < closestSquare; col++) {
-                        toPush.push_back(false);
-                    }
-                    cuddleGrid.push_back(toPush);
-                }
-
-
-                for (unit& oneUnit : allUnits) {
-                    oneUnit.cuddle();
-                }
-
-                if (groupBehavior == groupState::Exploring) groupBehavior = groupState::CuddlingBeforeInvestigation;
-                if (groupBehavior == groupState::Investigating) groupBehavior = groupState::CuddlingBeforeExploration;                
-
-            } else {
-                if (groupBehavior == groupState::CuddlingBeforeInvestigation) groupBehavior = groupState::Investigating;
-                if (groupBehavior == groupState::CuddlingBeforeExploration) groupBehavior = groupState::Exploring;  
-
-                // Start exploring!
-                totalBackAtCuddle = 0;
-                for (unit& oneUnit : allUnits) {
-                    oneUnit.goExplore((int)allUnits.size(), (groupBehavior == groupState::Investigating));
-                }
-            }
-
-            cuddled = !cuddled;
-
+            advanceGroupState(allUnits);
         }
-        
-
-
-
 
         BeginMode2D(camera);
             drawBG();
             Vector2 mouseWorldPosition = GetScreenToWorld2D(GetMousePosition(), camera);
             float deltaTime = GetFrameTime();
             for (unit& unitToDraw : allUnits) {
-                std::vector<unit> allUnitsToSend = allUnits;
-                allUnitsToSend.erase(allUnitsToSend.begin() + unitToDraw.getID() - 1);
                 unitToDraw.tickUpdate(deltaTime, allUnits);
                 unitToDraw.draw();
 
