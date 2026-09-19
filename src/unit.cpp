@@ -136,7 +136,10 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     float desiredY = goalY + repulsionForces.y;
 
     // Snapping behavior, one of the biggest issues was 
-    if (distance < 20.0f && currentState == groupState::CuddlingProcess) {
+    if (distance < 17.0f && (currentState == groupState::CuddlingProcess ||
+        currentState == groupState::CuddlingBeforeExploration ||
+        currentState == groupState::CuddlingBeforeInvestigation ||
+        currentState == groupState::Returning)) {
         direction = 90;
         position.x = currentPositionalGoal.x;
         position.y = currentPositionalGoal.y;
@@ -167,9 +170,8 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
         repelStrength = 0.0f;
     } else if (currentState == groupState::Returning) {
         personalSpace = 22.5f;
-        repelStrength = 1.0f;
+        repelStrength = 2.0f;
     }
-    
 
     if (currentState == groupState::HangingOut && distance < 20.0f) {
         currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
@@ -325,7 +327,10 @@ void unit::addToGoal(Vector2 goalAdd) {
 
 
 bool unit::hasReturnedToCuddle() const {
-    return currentState == groupState::CuddlingProcess && hasArrivedAtCuddle;
+    return hasArrivedAtCuddle &&
+        (currentState == groupState::CuddlingBeforeExploration ||
+         currentState == groupState::CuddlingBeforeInvestigation ||
+         currentState == groupState::CuddlingProcess);
 }
 
 
@@ -343,6 +348,7 @@ void unit::setGroupState(groupState inputGroupBehavior, int totalUnits) {
                 currentState = groupState::Returning;
                 claimCuddleSpot();
             }
+            currentState = inputGroupBehavior;
             break;
 
         case groupState::Exploring:
