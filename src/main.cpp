@@ -83,7 +83,7 @@ void drawDebugInfo(const std::vector<unit>& allUnits, const std::vector<incentiv
     };
 
     debugScroll += GetMouseWheelMove() * 22.0f;
-    debugScroll = std::clamp(debugScroll, 0.0f, 160.0f);
+    debugScroll = std::clamp(debugScroll, 0.0f, 4000.0f);
 
     Rectangle panelRect = { 0, panelY, panelW, (float)GetScreenHeight() };
     DrawRectangleRec(panelRect, Color{ 0, 0, 0, 200 });
@@ -93,6 +93,7 @@ void drawDebugInfo(const std::vector<unit>& allUnits, const std::vector<incentiv
     DrawText(TextFormat("Units: %d", (int)allUnits.size()), padding, (int)panelY + 62 - debugScroll, 18, RAYWHITE);
 
     float y = contentTop;
+    y += 15.0f;
     DrawText("UNITS", padding, (int)y - debugScroll, 18, RAYWHITE);
     y += 22.0f;
 
@@ -101,14 +102,41 @@ void drawDebugInfo(const std::vector<unit>& allUnits, const std::vector<incentiv
         DrawText(unitText.c_str(), padding, (int)(y - debugScroll), 16, WHITE);
         y += 18.0f;
 
-        std::string goalText = TextFormat("  Goal: (%.0f, %.0f)", oneUnit.currentPositionalGoal.x, oneUnit.currentPositionalGoal.y);
-        DrawText(goalText.c_str(), padding + 5, (int)(y - debugScroll), 14, LIGHTGRAY);
+        std::string goalText = TextFormat("Goal: (%.0f, %.0f)", oneUnit.currentPositionalGoal.x, oneUnit.currentPositionalGoal.y);
+        DrawText(goalText.c_str(), padding + 15, (int)(y - debugScroll), 14, LIGHTGRAY);
         y += 16.0f;
 
-        std::string foundText = TextFormat("  Found: %d | Assigned: %d", (int)oneUnit.incentivesFoundInSession.size(), (int)oneUnit.assignedIncentiveIds.size());
-        DrawText(foundText.c_str(), padding + 5, (int)(y - debugScroll), 14, LIGHTGRAY);
+        std::string foundText = TextFormat("Found: %d, Assigned: %d", (int)oneUnit.incentivesFoundInSession.size(), (int)oneUnit.assignedIncentiveIds.size());
+        DrawText(foundText.c_str(), padding + 15, (int)(y - debugScroll), 14, LIGHTGRAY);
         y += 18.0f;
+
+        if (oneUnit.assignedIncentiveIds.size() > 0) {
+            foundText = TextFormat("Future priority: %i", (int)oneUnit.assignedIncentiveIds[0]);
+            DrawText(foundText.c_str(), padding + 15, (int)(y - debugScroll), 14, LIGHTGRAY);
+            y += 18.0f;
+        }
     }
+
+    y += 20.0f;
+    DrawText("SHARED INCENTIVE LIST", padding, (int)y - debugScroll, 18, RAYWHITE);
+    y += 22.0f;
+    int i = 0;
+    for (const incentives& sharedIncentiveIndiv : sharedIncentivesFound) {
+        i++;
+        std::string incentiveText = TextFormat("Incentive #%i", i);
+        DrawText(incentiveText.c_str(), padding, (int)(y - debugScroll), 16, WHITE);
+        y += 18.0f;
+
+        incentiveText = TextFormat("Interest Level: %f", sharedIncentiveIndiv.interest);
+        DrawText(incentiveText.c_str(), padding + 15, (int)(y - debugScroll), 14, LIGHTGRAY);
+        y += 18.0f;
+
+        incentiveText = TextFormat("Difficulty Level: %f", sharedIncentiveIndiv.difficulty);
+        DrawText(incentiveText.c_str(), padding + 15, (int)(y - debugScroll), 14, LIGHTGRAY);
+        y += 18.0f;
+        
+    }
+
 }
 
 
@@ -253,6 +281,7 @@ void advanceGroupState(std::vector<unit>& allUnits) {
 
         case groupState::CuddlingBeforeInvestigation:
             if (allUnitsCuddled(allUnits)) {
+                assignIncentives(allUnits);
                 beginOutward(allUnits, /*investigating=*/true);
             }
             break;

@@ -31,3 +31,14 @@ I was having a lot of issues with desyncing between the units and the group as a
 Came to the realization that one of the biggest things that was biting my ass while working on this was the fact that I didn't actually need a unitState for the bot, since they're all shared across each bot. So there is no need for an individual state, and it was one of the biggest things that was holding me down. I struggled with this a LOT and even with the help of Claude to help me debug, so I eventually just tore everything out and created a new centralized groupstate system that takes in commands directly from main and assigns to all members. This helps remove the decoupling risk since how centralized it is. 
 
 Also another thing was updating the debug screen to be more simple and also include scrolling functionality. 
+
+# September 19th
+Before today's work, my biggest focus is making it so that during the investigation phase, each unit will actually have to go do their tasks and shit. Here's the stepped plan for how im gonna do that:
+    1. Create a shared list display on the debug sidebar
+    2. Under each unit, an indented list of things they gotta do on the debug sidebar
+    3. Actually making them go to the points, wait for all units to arrive, and then doing the task.
+
+Ended up kind of procrastinating today, but I got some stuff done with unifying the unitmind code to use the same system as unit but not much.
+
+# September 20-23rd
+Sorry, not a ton of progress recently due to a sudden increase schoolwork as well as other things in life but I've been approaching a big problem that did warrant a lot of work. That being the issue with my algorithm not really understanding how to properly assign tasks to units lol. I redid the task assignment such that each unit gets equal work, and then made it so that each unit gets their own task bar as they work. The current issue with this right now is that you can't see when an incentive gets "finished", so I need to find a way to connect those. And a bunch of smaller changes.

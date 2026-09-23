@@ -53,8 +53,6 @@ class unit {
         // divide up scouting slices); pass 0 when it doesn't apply.
         void setGroupState(groupState inputGroupBehavior, int totalUnits = 0);
 
-        void addToGoal(Vector2 goalAdd);
-
         void goExplore(int totalUnits, bool investigatingOrNo
             // const std::vector<int>& checkTheseOutIds // IDs into the central incentives store, passed by const ref to avoid a copy
         );
@@ -68,6 +66,8 @@ class unit {
 
         // basd on the one in main.hpp
         int currentType;
+        float totalTimeDoingTask;
+        bool doingTask;
 
 
 

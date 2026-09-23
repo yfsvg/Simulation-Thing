@@ -51,6 +51,9 @@ unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
 
     incentivesFoundInSession.clear();
 
+    doingTask = false;
+    totalTimeDoingTask = 0;
+
     // Units always start out while hanging out near the center until the first X press moves the whole group into the next stage
     currentState = groupState::HangingOut;
     hasArrivedAtCuddle = false;
@@ -84,6 +87,18 @@ void unit::draw() {
     DrawText(idAsString.c_str(), position.x - (textWidth / 2.0f), position.y - (20 / 2.0f), fontSize, BLACK);
 
     DrawText(idAsString.c_str(), currentPositionalGoal.x - 5, currentPositionalGoal.y - 5, 20, RED);
+
+    // Drawing progress line
+
+    if (doingTask) {
+        Rectangle progressBarTotal = {position.x, position.y - 50, 80 + 4, 10 + 4};
+        DrawRectanglePro(progressBarTotal, {22, 7}, 0, BLACK);
+
+        float totalTimeNeeded = totalTimeDoingTask + timeInSSpentAtFutureGoal[0];
+        float percentDoneAsForty = 82.0f * (totalTimeDoingTask / totalTimeNeeded);
+        Rectangle progressBarDone = {position.x, position.y - 50, percentDoneAsForty, 10 + 2};
+        DrawRectanglePro(progressBarDone, {21, 6}, 0, RED);
+    }
 }
 
 
@@ -110,6 +125,11 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     Vector2 repulsionForces = {0.0f, 0.0f};
 
     for (unit other : allOtherUnits) {
+        // We don't care about avoiding them if theyre working, also allows multiple to work at the same time.
+        if (other.doingTask) {
+            continue;
+        }
+
         if (other.getID() == id) {
             continue;
         }
@@ -162,8 +182,13 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
 
 
     if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
-        personalSpace = 150.0f;
-        repelStrength = 4.0f;
+        if (doingTask) {
+            personalSpace = 50.0f;
+            repelStrength = 2.0f;
+        } else {
+            personalSpace = 150.0f;
+            repelStrength = 4.0f;
+        }
         hasArrivedAtCuddle = false;
     } else if (currentState == groupState::CuddlingProcess || currentState == groupState::CuddlingBeforeExploration || currentState == groupState::CuddlingBeforeInvestigation) {
         personalSpace = 0.0f;
@@ -173,35 +198,45 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
         repelStrength = 2.0f;
     }
 
-    if (currentState == groupState::HangingOut && distance < 20.0f) {
-        currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
-    } else if (distance < 40.0f) {
-        if (currentState == groupState::Exploring) {
-            goExploreTarget((int)(allOtherUnits.size()));
-        } 
-        
-        if (currentState == groupState::Investigating) {
-            // In the future, IN HERE we make the guy wait
-            if (futurePositionalGoals.empty()) {
-                currentState = groupState::HangingOut;
-                currentPositionalGoal = {0.0f, 0.0f};
-            } else {
+
+    if (currentState == groupState::Investigating) {
+        if (futurePositionalGoals.empty()) {
+            currentState = groupState::Exploring;
+            // Should get called back
+            currentPositionalGoal = {0.0f, 0.0f};
+        } else if (distance < 30.0f) {
+            // Arrived: park and count down
+            velocity = 0.0f;
+            acceleration = 0.0f;
+
+            timeInSSpentAtFutureGoal[0] -= deltaTime;
+            totalTimeDoingTask += deltaTime;
+            doingTask = true;
+
+            if (timeInSSpentAtFutureGoal[0] <= 0.0f) {
+                doingTask = false;
+                totalTimeDoingTask = 0;
+
                 futurePositionalGoals.erase(futurePositionalGoals.begin());
-                if (!timeInSSpentAtFutureGoal.empty()) {
-                    timeInSSpentAtFutureGoal.erase(timeInSSpentAtFutureGoal.begin());
+                timeInSSpentAtFutureGoal.erase(timeInSSpentAtFutureGoal.begin());
+                if (!assignedIncentiveIds.empty()) {
+                    assignedIncentiveIds.erase(assignedIncentiveIds.begin());
                 }
 
-                // Assume that the one in tick checker will handle it maybe?
                 if (!futurePositionalGoals.empty()) {
-                    currentPositionalGoal = futurePositionalGoals[0];
+                    currentPositionalGoal = futurePositionalGoals.front();
+                } else {
+                    currentState = groupState::HangingOut;
+                    currentPositionalGoal = {0.0f, 0.0f};
                 }
             }
-            // knock off the incentive they just went to, and then set positional goal back to the next item in line
-            // If incentive list is size 0, then start hanging out back at the center to charge up and chill
         }
-    } else if (distance < 50.0f && currentState == groupState::Returning) {
+    } else if (currentState == groupState::HangingOut && distance < 20.0f) {
+        currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
+    } else if (currentState == groupState::Exploring && distance < 40.0f) {
+        goExploreTarget((int)allOtherUnits.size());
+    } else if (currentState == groupState::Returning && distance < 50.0f) {
         currentState = groupState::CuddlingProcess;
-        // now that they are sufficiently close, make them go towards the innermost vacant "false" spot in the cuddlegrid. Each grid is separated 50x50.
     }
 
 
@@ -227,6 +262,9 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     }
 
 }
+
+
+
 
 
 void unit::claimCuddleSpot() {
@@ -303,25 +341,24 @@ void unit::goExploreTarget(int totalUnits) {
 }
 
 void unit::goExplore(int totalUnits, bool investigatingOrNoInput) {
-    currentState = groupState::Exploring;
     investigatingOrNo = investigatingOrNoInput;
     if (!investigatingOrNo) {
+        currentState = groupState::Exploring;
         goExploreTarget(totalUnits);
     } else {
-        // Go to 
+        currentState = groupState::Investigating;
+        if (!futurePositionalGoals.empty()) {
+            currentPositionalGoal = futurePositionalGoals.front();
+        } else {
+            // nothing assigned (bum behavior) go home and idle
+            currentPositionalGoal = {0.0f, 0.0f};
+            currentState = groupState::HangingOut;
+        }
     }
 }
 
 void unit::findOne(incentives incentiveFound) {
     incentivesFoundInSession.push_back(incentiveFound);
-}
-
-void unit::addToGoal(Vector2 goalAdd) {
-    if (futurePositionalGoals.empty()) {
-        currentPositionalGoal = goalAdd;
-    }
-
-    futurePositionalGoals.push_back(goalAdd);
 }
 
 
@@ -353,15 +390,20 @@ void unit::setGroupState(groupState inputGroupBehavior, int totalUnits) {
 
         case groupState::Exploring:
             goExplore(totalUnits, false);
+            hasArrivedAtCuddle = false;
             break;
 
         case groupState::Investigating:
             // add with the incentive list later
             goExplore(totalUnits, true);
+            hasArrivedAtCuddle = false;
             break;
 
         case groupState::HangingOut:
+            hasArrivedAtCuddle = false;
         case groupState::Returning:
+            
+    
         case groupState::CuddlingProcess:
         default:
             currentState = inputGroupBehavior;

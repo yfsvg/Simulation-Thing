@@ -28,6 +28,8 @@ void assignIncentives(std::vector<unit>& allUnits) {
     for (unit& indivUnit : allUnits) {
         indivUnit.assignedIncentiveIds.clear();
         indivUnit.futurePositionalGoals.clear();
+        indivUnit.timeInSSpentAtFutureGoal.clear();
+        indivUnit.currentPositionalGoal = {0.0f, 0.0f};
     }
 
     // Count the units types to see what we have and what we dont have
@@ -39,48 +41,54 @@ void assignIncentives(std::vector<unit>& allUnits) {
     // Order the incentives by interest, start greedy-assigning by the most importn
     sortByInterest();
 
-    // One entry per incentive: can we currently field every unit type it needs?
-    std::vector<bool> canDo(sharedIncentivesFound.size(), true);
+    // Time to ASSIGN incentives!!!
+
+    std::set<unit*> globallyAssigned;
+
     for (int i = 0; i < sharedIncentivesFound.size(); i++) {
-        for (int neededUnit : sharedIncentivesFound[i].typeOfUnitsNeeded) {
-            if (typeInventory[neededUnit] == 0) {
-                canDo[i] = false;
+        const incentives& incentive = sharedIncentivesFound[i];
+        bool canDo = true;
+        for (int neededUnit : incentive.typeOfUnitsNeeded) {
+            if (neededUnit < 0 || neededUnit >= typeInventory.size() || typeInventory[neededUnit] == 0) {
+                canDo = false;
                 break;
             }
         }
-    }
 
-    // Time to ASSIGN incentives!!!
+        if (!canDo) continue;
 
-    for (int i = 0; i < sharedIncentivesFound.size(); i++) {
-        if (!canDo[i]) {
-            continue;
-        }
 
-        // Loop through all needed ones, try to find one needed and then assign it. Assign meaning give it to their list
-        for (int indivTypeNeeded : sharedIncentivesFound[i].typeOfUnitsNeeded) {
+
+        std::vector<unit*> assignedUnits;
+        for (int indivTypeNeeded : incentive.typeOfUnitsNeeded) {
             for (unit& candidateUnit : allUnits) {
                 if (candidateUnit.currentType != indivTypeNeeded) {
                     continue;
                 }
 
-                bool alreadyAssigned = std::find(
-                    candidateUnit.assignedIncentiveIds.begin(),
-                    candidateUnit.assignedIncentiveIds.end(),
-                    sharedIncentivesFound[i].id
-                ) != candidateUnit.assignedIncentiveIds.end();
 
-                if (alreadyAssigned) {
+                if (globallyAssigned.count(&candidateUnit)) {
                     continue;
                 }
 
-                candidateUnit.assignedIncentiveIds.push_back(sharedIncentivesFound[i].id);
-                candidateUnit.addToGoal(sharedIncentivesFound[i].getPosition());
-                typeInventory[indivTypeNeeded]--;
+                if (std::find(assignedUnits.begin(), assignedUnits.end(), &candidateUnit) != assignedUnits.end()) {
+                    continue;
+                }
+
+                assignedUnits.push_back(&candidateUnit);
                 break;
             }
         }
-        
+
+
+        for (unit* assignedUnit : assignedUnits) {
+            assignedUnit -> assignedIncentiveIds.push_back(incentive.id);
+            assignedUnit -> futurePositionalGoals.push_back(incentive.position);
+            assignedUnit -> timeInSSpentAtFutureGoal.push_back(5.0f);
+            typeInventory[assignedUnit -> currentType]--;
+            assignedUnit -> currentPositionalGoal = assignedUnit->futurePositionalGoals.front();
+            globallyAssigned.insert(assignedUnit);
+        }
     }
 
 
