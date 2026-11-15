@@ -181,7 +181,7 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
     direction += diff * 2.0f * deltaTime;
 
 
-    if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
+    if (currentState == groupState::Exploring || currentState == groupState::Investigating  || currentState == groupState::HangingOut) {
         if (doingTask) {
             personalSpace = 50.0f;
             repelStrength = 2.0f;
@@ -203,7 +203,7 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
         if (futurePositionalGoals.empty()) {
             currentState = groupState::Exploring;
             // Should get called back
-            currentPositionalGoal = {0.0f, 0.0f};
+            goExploreTarget(allOtherUnits.size());
         } else if (distance < 30.0f) {
             // Arrived: park and count down
             velocity = 0.0f;
@@ -226,13 +226,14 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
                 if (!futurePositionalGoals.empty()) {
                     currentPositionalGoal = futurePositionalGoals.front();
                 } else {
-                    currentState = groupState::HangingOut;
-                    currentPositionalGoal = {0.0f, 0.0f};
+                    currentState = groupState::Exploring;
+                    goExploreTarget(allOtherUnits.size());
+                    // After tasks are done
                 }
             }
         }
     } else if (currentState == groupState::HangingOut && distance < 20.0f) {
-        currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
+        currentPositionalGoal = { (float)randomNum(-100, 100), (float)randomNum(-100, 100) };
     } else if (currentState == groupState::Exploring && distance < 40.0f) {
         goExploreTarget((int)allOtherUnits.size());
     } else if (currentState == groupState::Returning && distance < 50.0f) {

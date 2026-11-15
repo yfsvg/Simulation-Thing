@@ -102,7 +102,7 @@ void drawDebugInfo(const std::vector<unit>& allUnits, const std::vector<incentiv
         DrawText(unitText.c_str(), padding, (int)(y - debugScroll), 16, WHITE);
         y += 18.0f;
 
-        std::string goalText = TextFormat("Goal: (%.0f, %.0f)", oneUnit.currentPositionalGoal.x, oneUnit.currentPositionalGoal.y);
+        std::string goalText = TextFormat("Goal: (%.0f, %.0f). Doing task: %i", oneUnit.currentPositionalGoal.x, oneUnit.currentPositionalGoal.y, (oneUnit.doingTask) ? 1 : 0);
         DrawText(goalText.c_str(), padding + 15, (int)(y - debugScroll), 14, LIGHTGRAY);
         y += 16.0f;
 

@@ -43,6 +43,8 @@ void assignIncentives(std::vector<unit>& allUnits) {
 
     // Time to ASSIGN incentives!!!
 
+    // Right now, a critical error is that even if there are multiple incentives to look for,
+
     std::set<unit*> globallyAssigned;
 
     for (int i = 0; i < sharedIncentivesFound.size(); i++) {

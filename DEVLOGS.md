@@ -42,3 +42,5 @@ Ended up kind of procrastinating today, but I got some stuff done with unifying 
 
 # September 20-23rd
 Sorry, not a ton of progress recently due to a sudden increase schoolwork as well as other things in life but I've been approaching a big problem that did warrant a lot of work. That being the issue with my algorithm not really understanding how to properly assign tasks to units lol. I redid the task assignment such that each unit gets equal work, and then made it so that each unit gets their own task bar as they work. The current issue with this right now is that you can't see when an incentive gets "finished", so I need to find a way to connect those. And a bunch of smaller changes.
+
+# September 24th
