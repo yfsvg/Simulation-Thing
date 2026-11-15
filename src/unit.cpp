@@ -8,9 +8,18 @@
 #include "raylib.h"
 #include "raymath.h"
 
-#include "main.hpp"
+#include "utils.hpp"
+#include "environment.hpp"
 #include "unit.hpp"
 #include "unitMind.hpp"
+
+std::vector<std::string> allUnitTypes = {
+    "Scout",
+    "Drill",
+    "Imaging",
+    "Climate",
+    "Comm"
+};
 
 // A NEW SYSTEM FOR POSITIONAL TARGETS!!
 // rather than just a point to go to, they have a list of points to go to as priorities so they can be programmed to do
@@ -34,7 +43,7 @@ unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
     acceleration = 0;
 
     currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
-    currentDirectionalGoal = std::atan2(currentPositionalGoal.y - position.y, currentPositionalGoal.x - position.x) * (180.0f / 3.1415926535897932384f);
+    currentDirectionalGoal = std::atan2(currentPositionalGoal.y - position.y, currentPositionalGoal.x - position.x) * RAD2DEG;
 
     futurePositionalGoals.clear();
     timeInSSpentAtFutureGoal.clear();
@@ -168,14 +177,14 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
             hasArrivedAtCuddle = true;
         }
     } else {
-        currentDirectionalGoal = std::atan2(desiredY, desiredX) * (180.0f / 3.1415926535897932384f);
+        currentDirectionalGoal = std::atan2(desiredY, desiredX) * RAD2DEG;
     }
     // the best one
     float diff = currentDirectionalGoal - direction;
     while (diff < -180.0f) diff += 360.0f;
     while (diff > 180.0f) diff -= 360.0f;
 
-    float desiredSpeed = (distance > 20.0f) ? fmaxf(200.0f * cosf(diff * (3.1415926535897932384f / 180.0f)), 0.0f) : 0.0f;
+    float desiredSpeed = (distance > 20.0f) ? fmaxf(200.0f * cosf(diff * DEG2RAD), 0.0f) : 0.0f;
     acceleration = (desiredSpeed - velocity) * 2.0f;
 
     direction += diff * 2.0f * deltaTime;
@@ -242,25 +251,12 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
 
 
     velocity += acceleration * deltaTime;
-    position.x += velocity * cosf(direction * (3.1415926535897932384f / 180.0f)) * deltaTime;
-    position.y += velocity * sinf(direction * (3.1415926535897932384f / 180.0f)) * deltaTime;
+    position.x += velocity * cosf(direction * DEG2RAD) * deltaTime;
+    position.y += velocity * sinf(direction * DEG2RAD) * deltaTime;
 
 
     // mark newly wandered areas as explored with a radius of vision tiles
-    int centerVertical = (int)((position.x + mapWidth * 0.5f) / 25);
-    int centerHorizontal = (int)((position.y + mapHeight * 0.5f) / 25);
-
-    for (int row = std::max(0, centerHorizontal - vision); row <= std::min((int)(mapHeight / 25) - 1, centerHorizontal + vision); ++row) {
-        for (int col = std::max(0, centerVertical - vision); col <= std::min((int)(mapWidth / 25) - 1, centerVertical + vision); ++col) {
-
-            int dx = col - centerVertical;
-            int dy = row - centerHorizontal;
-
-            if (dx * dx + dy * dy <= vision * vision) {
-                exploredTiles[row][col] = true;
-            }
-        }
-    }
+    markExplored(position, vision);
 
 }
 
@@ -331,7 +327,7 @@ void unit::goExploreTarget(int totalUnits) {
     float sliceStart = (id - 1.0f) * sliceDeg;
 
     float angleDeg = sliceStart + randomNum(0, (int)sliceDeg) + 0.0f;
-    float angleRad = angleDeg * (3.1415926535897932384f / 180.0f);
+    float angleRad = angleDeg * DEG2RAD;
 
     float r = explorationRadius * std::sqrt(randomNum(0, 1000) / 1000.0f);
 
@@ -360,6 +356,20 @@ void unit::goExplore(int totalUnits, bool investigatingOrNoInput) {
 
 void unit::findOne(incentives incentiveFound) {
     incentivesFoundInSession.push_back(incentiveFound);
+}
+
+void unit::lookForIncentives(std::vector<incentives>& allIncentives) {
+    Vector2 unitPos = getPosition();
+    for (incentives& indivIncentive : allIncentives) {
+        // Is it within 120 pixels? If so, remove incentive
+        Vector2 incentivePos = indivIncentive.getPosition();
+
+        if (pow(unitPos.x - incentivePos.x, 2.0f) + pow(unitPos.y - incentivePos.y, 2) < pow(140, 2) && !indivIncentive.isFound()) {
+            indivIncentive.die();
+            // Tell the unit qbout it you found one
+            findOne(indivIncentive);
+        }
+    }
 }
 
 

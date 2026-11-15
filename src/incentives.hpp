@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include "raylib.h"
 
 class incentives {
@@ -32,3 +33,6 @@ class incentives {
         bool isFound();
 
 };
+
+// Places totalIncentives incentives randomly throughout the map
+void spawnIncentives(std::vector<incentives>& allIncentives, int totalIncentives);

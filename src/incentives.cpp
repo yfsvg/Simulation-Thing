@@ -24,7 +24,9 @@
 #include "raylib.h"
 #include "raymath.h"
 
-#include "main.hpp"
+#include "utils.hpp"
+#include "environment.hpp"
+#include "unit.hpp"
 #include "incentives.hpp"
 
 incentives::incentives(int inputId, Vector2 inputPosition, float inputInterest, float inputDifficulty) {
@@ -96,4 +98,13 @@ void incentives::die() {
 
 bool incentives::isFound() {
     return found;
+}
+
+void spawnIncentives(std::vector<incentives>& allIncentives, int totalIncentives) {
+    for (int i = 0; i < totalIncentives; i++) {
+        Vector2 newPos = { (float)randomNum(mapWidth * -0.5f, mapWidth * 0.5f), (float)randomNum(mapHeight * -0.5f, mapHeight * 0.5f) };
+        incentives newIncentive = incentives((int)(allIncentives.size() + 1), newPos, randomNum(0, 1000)/100.0f, randomNum(0, 1000)/100.0f);
+        // Creating the incentives 
+        allIncentives.push_back(newIncentive);
+    }
 }

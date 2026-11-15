@@ -4,7 +4,10 @@
 
 #include "raylib.h"
 
+#include "groupState.hpp"
 #include "incentives.hpp"
+
+extern std::vector<std::string> allUnitTypes;
 
 class unit {
     public:
@@ -38,7 +41,7 @@ class unit {
 
         void tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits);
         void draw();
-        void remove();
+        void remove(); // Not implemented yet
         void cuddle();
         Vector2 getPosition();
         float getID();
@@ -62,9 +65,13 @@ class unit {
         // whole swarm has finished converging.
         bool hasReturnedToCuddle() const;
 
+        // Checks every incentive to see if this unit is close enough to discover it.
+        // Newly discovered ones get marked as found and added to incentivesFoundInSession
+        void lookForIncentives(std::vector<incentives>& allIncentives);
+
         groupState currentState;
 
-        // basd on the one in main.hpp
+        // basd on allUnitTypes, index into it
         int currentType;
         float totalTimeDoingTask;
         bool doingTask;

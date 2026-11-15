@@ -1,15 +1,8 @@
 #pragma once
 #include <vector>
-#include <string>
 
-extern float mapWidth;
-extern float mapHeight;
+class unit;
 
-extern int randomNum(int min, int max);
-
-extern std::vector<std::vector<bool>> cuddleGrid;
-
-extern std::vector<std::string> allUnitTypes;
 // New GROUOPSTATE system. Shared across all units and is global. The cycle is such:
 /*
     1. Initial state hanging out, which is for units that have finished their task or units at the start of the simulation.
@@ -29,4 +22,11 @@ enum class groupState {
     Investigating // Doing their assigned tasks. After their assigned tasks are finished, they return to hang out before cuddling
 };
 
-extern int totalBackAtCuddle;
+// The phase that the whole group is currently in
+extern groupState groupBehavior;
+
+extern std::vector<std::vector<bool>> cuddleGrid;
+
+const char* groupStateToString(groupState state);
+
+void advanceGroupState(std::vector<unit>& allUnits);
