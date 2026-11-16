@@ -20,7 +20,7 @@ int tileSize = 25;
 std::vector<std::vector<bool>> exploredTiles;
 
 
-void initExploredtiles() {
+void initExploredTiles() {
     exploredTiles.clear();
     for (int row = 0; row < mapHeight / tileSize; row++) {
         std::vector<bool> toPush;
