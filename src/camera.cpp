@@ -25,6 +25,13 @@ void cameraMovement() {
     if (IsKeyDown(KEY_A)) camera.target.x -= cameraSpeed * dt;
     if (IsKeyDown(KEY_D)) camera.target.x += cameraSpeed * dt;
 
+    // Dragging the map with the mouse. Divided by zoom so the ground stays stuck under the cursor
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        Vector2 mouseDelta = GetMouseDelta();
+        camera.target.x -= mouseDelta.x / camera.zoom;
+        camera.target.y -= mouseDelta.y / camera.zoom;
+    }
+
     camera.target.x = std::clamp(camera.target.x, -0.5f*mapWidth, 0.5f*mapWidth);
     camera.target.y = std::clamp(camera.target.y, -0.5f*mapHeight, 0.5f*mapHeight);
 

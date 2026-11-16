@@ -1,185 +1,107 @@
-#include <math.h>
-#include <string>
-#include <cmath>
-#include <vector>
 #include <algorithm>
-#include <set>
+#include <cmath>
+#include <string>
+#include <vector>
 
 #include "raylib.h"
-#include "raymath.h"
 
 #include "utils.hpp"
 #include "environment.hpp"
 #include "unit.hpp"
-#include "unitMind.hpp"
 
 std::vector<std::string> allUnitTypes = {
     "Scout",
-    "Drill",
-    "Imaging",
-    "Climate",
-    "Comm"
+    "Driller",
+    "Fabricator",
+    "Hauler"
 };
 
-// A NEW SYSTEM FOR POSITIONAL TARGETS!!
-// rather than just a point to go to, they have a list of points to go to as priorities so they can be programmed to do
-// multiple tasks during each meetup. They also have a list of time that they need to be there for to do their tasks.
+static const Color unitTypeColors[] = {WHITE, RED, GREEN, BLUE};
 
 
-// how about the greedy system and then a comparison to a system that divides the interest by the how scarce the bots 
-// are in that category. For example, if a swarm has a lot of type 1 and only 3 type 2s, theyd like to take on a task 
-// with interest 4 that needs 2 type 1s more than a task with interest 5 that needs all 3 type 2s
-// Could be a potentially interesting idea, maybe implement later as a comparison.
-
-
-unit::unit(float inputId, Vector2 inputPosition, int typeInput) {
+unit::unit(int inputId, Vector2 inputPosition, int typeInput) {
     position = inputPosition;
     id = inputId;
-    size = 45.0f;
-    currentType = typeInput;
-    // in degrees. Start from right, go ccw
-    direction = randomNum(0, 359) + 0.0f;
-    velocity = randomNum(0, 20) + 0.0f;
-    acceleration = 0;
-
-    currentPositionalGoal = { (float)randomNum(-50, 50), (float)randomNum(-50, 50) };
-    currentDirectionalGoal = std::atan2(currentPositionalGoal.y - position.y, currentPositionalGoal.x - position.x) * RAD2DEG;
-
-    futurePositionalGoals.clear();
-    timeInSSpentAtFutureGoal.clear();
-
     idAsString = std::to_string(id);
-    idAsString = idAsString.substr(0, idAsString.find('.'));
+    currentType = typeInput;
 
-    personalSpace = 125.0f; // radius at which repulsion kicks in
-    repelStrength = 3.0f; // How powerful the repulsion is. Probably should be reducing during cuddling or returning stages so they are more willing to closer
+    size = 45.0f;
+    direction = (float)randomNum(0, 359);
+    velocity = (float)randomNum(0, 20);
+    acceleration = 0.0f;
     vision = 5;
-    explorationRadius = 3000;
 
-    investigatingOrNo = false;
+    personalSpace = 150.0f;
+    repelStrength = 4.0f;
 
-    incentivesFoundInSession.clear();
-
-    doingTask = false;
-    totalTimeDoingTask = 0;
-
-    // Units always start out while hanging out near the center until the first X press moves the whole group into the next stage
-    currentState = groupState::HangingOut;
-    hasArrivedAtCuddle = false;
+    idleAnchor = inputPosition;
+    idleRadius = 100.0f;
+    pickIdleGoal();
+    currentDirectionalGoal = direction;
 }
 
 
-Vector2 unit::getPosition() {
+Vector2 unit::getPosition() const {
     return position;
 }
 
-float unit::getID() {
+int unit::getID() const {
     return id;
 }
 
 
-
-
-void unit::draw() {
+void unit::draw() const {
     Rectangle drawingUnit = {position.x, position.y, size, size};
     Vector2 drawingUnitOrigin = {size / 2.0f, size / 2.0f};
-    std::vector<Color> colorsOfCourse = {WHITE, RED, GREEN, BLUE, YELLOW};
-    if (hasArrivedAtCuddle) {
-        DrawRectanglePro(drawingUnit, drawingUnitOrigin, 90, colorsOfCourse[currentType]);
-    } else {
-        DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, colorsOfCourse[currentType]);
-    }
-
+    DrawRectanglePro(drawingUnit, drawingUnitOrigin, direction, unitTypeColors[currentType]);
 
     int fontSize = 20;
     int textWidth = MeasureText(idAsString.c_str(), fontSize);
-    DrawText(idAsString.c_str(), position.x - (textWidth / 2.0f), position.y - (20 / 2.0f), fontSize, BLACK);
-
-    DrawText(idAsString.c_str(), currentPositionalGoal.x - 5, currentPositionalGoal.y - 5, 20, RED);
-
-    // Drawing progress line
-
-    if (doingTask) {
-        Rectangle progressBarTotal = {position.x, position.y - 50, 80 + 4, 10 + 4};
-        DrawRectanglePro(progressBarTotal, {22, 7}, 0, BLACK);
-
-        float totalTimeNeeded = totalTimeDoingTask + timeInSSpentAtFutureGoal[0];
-        float percentDoneAsForty = 82.0f * (totalTimeDoingTask / totalTimeNeeded);
-        Rectangle progressBarDone = {position.x, position.y - 50, percentDoneAsForty, 10 + 2};
-        DrawRectanglePro(progressBarDone, {21, 6}, 0, RED);
-    }
+    DrawText(idAsString.c_str(), position.x - (textWidth / 2.0f), position.y - (fontSize / 2.0f), fontSize, BLACK);
 }
 
 
+// Idle behavior: wander to random points around the idle anchor
+void unit::pickIdleGoal() {
+    int r = (int)idleRadius;
+    currentPositionalGoal = {
+        idleAnchor.x + (float)randomNum(-r, r),
+        idleAnchor.y + (float)randomNum(-r, r)
+    };
+}
 
 
-
-
-
-
-void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
-
-    Vector2 myPos = getPosition();
-
-    float dx = currentPositionalGoal.x - myPos.x;
-    float dy = currentPositionalGoal.y - myPos.y;
+void unit::tickUpdate(float deltaTime, const std::vector<unit>& allUnits) {
+    float dx = currentPositionalGoal.x - position.x;
+    float dy = currentPositionalGoal.y - position.y;
     float distance = std::sqrt(dx * dx + dy * dy);
-
 
     float goalX = (distance > 0.0001f) ? dx / distance : 0.0f;
     float goalY = (distance > 0.0001f) ? dy / distance : 0.0f;
 
-    // MRE-CCIC's rendezvous/comms structure, feeding into an MRTA task allocation step at each rendezvous
-
+    // Keep out of each other's personal space
     Vector2 repulsionForces = {0.0f, 0.0f};
 
-    for (unit other : allOtherUnits) {
-        // We don't care about avoiding them if theyre working, also allows multiple to work at the same time.
-        if (other.doingTask) {
+    for (const unit& other : allUnits) {
+        if (other.id == id) {
             continue;
         }
 
-        if (other.getID() == id) {
-            continue;
-        }
-
-        Vector2 otherPositions = other.getPosition();
-        float distanceToOthersSq = pow(myPos.x - otherPositions.x, 2.0f) + pow(myPos.y - otherPositions.y, 2.0f);
-
-        if (distanceToOthersSq < 0.0001f) {
-            distanceToOthersSq = 0.0001f;
-        }
-        float oDist = std::sqrt(distanceToOthersSq);
+        float offX = position.x - other.position.x;
+        float offY = position.y - other.position.y;
+        float oDist = std::sqrt(std::max(offX * offX + offY * offY, 0.0001f));
 
         if (oDist < personalSpace) {
             // Dynamic pushing based on how close the distance is to the set personal space, that way they dont overreact and explode just from getting somewhat close to each other
             float falloff = (personalSpace - oDist) / personalSpace;
-            repulsionForces.x += ((myPos.x - otherPositions.x) / oDist) * falloff * repelStrength;
-            repulsionForces.y += ((myPos.y - otherPositions.y) / oDist) * falloff * repelStrength;
+            repulsionForces.x += (offX / oDist) * falloff * repelStrength;
+            repulsionForces.y += (offY / oDist) * falloff * repelStrength;
         }
-
     }
 
-    // Update the direction goal dynamically based on avoidance previously
-    float desiredX = goalX + repulsionForces.x;
-    float desiredY = goalY + repulsionForces.y;
+    // Steer towards the goal, adjusted by the avoidance above
+    currentDirectionalGoal = std::atan2(goalY + repulsionForces.y, goalX + repulsionForces.x) * RAD2DEG;
 
-    // Snapping behavior, one of the biggest issues was 
-    if (distance < 17.0f && (currentState == groupState::CuddlingProcess ||
-        currentState == groupState::CuddlingBeforeExploration ||
-        currentState == groupState::CuddlingBeforeInvestigation ||
-        currentState == groupState::Returning)) {
-        direction = 90;
-        position.x = currentPositionalGoal.x;
-        position.y = currentPositionalGoal.y;
-        velocity = 0;
-        if (!hasArrivedAtCuddle) {
-            hasArrivedAtCuddle = true;
-        }
-    } else {
-        currentDirectionalGoal = std::atan2(desiredY, desiredX) * RAD2DEG;
-    }
-    // the best one
     float diff = currentDirectionalGoal - direction;
     while (diff < -180.0f) diff += 360.0f;
     while (diff > 180.0f) diff -= 360.0f;
@@ -189,235 +111,15 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits) {
 
     direction += diff * 2.0f * deltaTime;
 
-
-    if (currentState == groupState::Exploring || currentState == groupState::Investigating  || currentState == groupState::HangingOut) {
-        if (doingTask) {
-            personalSpace = 50.0f;
-            repelStrength = 2.0f;
-        } else {
-            personalSpace = 150.0f;
-            repelStrength = 4.0f;
-        }
-        hasArrivedAtCuddle = false;
-    } else if (currentState == groupState::CuddlingProcess || currentState == groupState::CuddlingBeforeExploration || currentState == groupState::CuddlingBeforeInvestigation) {
-        personalSpace = 0.0f;
-        repelStrength = 0.0f;
-    } else if (currentState == groupState::Returning) {
-        personalSpace = 22.5f;
-        repelStrength = 2.0f;
+    // Arrived, go wander somewhere else nearby
+    if (distance < 20.0f) {
+        pickIdleGoal();
     }
-
-
-    if (currentState == groupState::Investigating) {
-        if (futurePositionalGoals.empty()) {
-            currentState = groupState::Exploring;
-            // Should get called back
-            goExploreTarget(allOtherUnits.size());
-        } else if (distance < 30.0f) {
-            // Arrived: park and count down
-            velocity = 0.0f;
-            acceleration = 0.0f;
-
-            timeInSSpentAtFutureGoal[0] -= deltaTime;
-            totalTimeDoingTask += deltaTime;
-            doingTask = true;
-
-            if (timeInSSpentAtFutureGoal[0] <= 0.0f) {
-                doingTask = false;
-                totalTimeDoingTask = 0;
-
-                futurePositionalGoals.erase(futurePositionalGoals.begin());
-                timeInSSpentAtFutureGoal.erase(timeInSSpentAtFutureGoal.begin());
-                if (!assignedIncentiveIds.empty()) {
-                    assignedIncentiveIds.erase(assignedIncentiveIds.begin());
-                }
-
-                if (!futurePositionalGoals.empty()) {
-                    currentPositionalGoal = futurePositionalGoals.front();
-                } else {
-                    currentState = groupState::Exploring;
-                    goExploreTarget(allOtherUnits.size());
-                    // After tasks are done
-                }
-            }
-        }
-    } else if (currentState == groupState::HangingOut && distance < 20.0f) {
-        currentPositionalGoal = { (float)randomNum(-100, 100), (float)randomNum(-100, 100) };
-    } else if (currentState == groupState::Exploring && distance < 40.0f) {
-        goExploreTarget((int)allOtherUnits.size());
-    } else if (currentState == groupState::Returning && distance < 50.0f) {
-        currentState = groupState::CuddlingProcess;
-    }
-
 
     velocity += acceleration * deltaTime;
     position.x += velocity * cosf(direction * DEG2RAD) * deltaTime;
     position.y += velocity * sinf(direction * DEG2RAD) * deltaTime;
 
-
     // mark newly wandered areas as explored with a radius of vision tiles
     markExplored(position, vision);
-
-}
-
-
-
-
-
-void unit::claimCuddleSpot() {
-    int gridSize = 50;
-    int n = (int)cuddleGrid.size();
-    if (n == 0) return;
-
-    // center of grid: even-sized grid centers on 0,0; odd-sized centers on 25,25
-    int centerIdx = n / 2;
-
-    float bestDistSq = -1.0f;
-    int bestRow = -1, bestCol = -1;
-
-    for (int row = 0; row < n; row++) {
-        for (int col = 0; col < (int)cuddleGrid[row].size(); col++) {
-            if (cuddleGrid[row][col]) continue; // occupied
-
-            float cellX = (col - (n / 2)) * (float)gridSize;
-            float cellY = (row - (n / 2)) * (float)gridSize;
-    
-            float dSq = cellX * cellX + cellY * cellY;
-
-            if (bestDistSq < 0.0f || dSq < bestDistSq) {
-                bestDistSq = dSq;
-                bestRow = row;
-                bestCol = col;
-            }
-        }
-    }
-
-    if (bestRow == -1) return;
-
-    // Claiming
-    cuddleGrid[bestRow][bestCol] = true;
-
-    currentPositionalGoal.x = (bestCol - (float)(n / 2)) * (float)gridSize;
-    currentPositionalGoal.y = (bestRow - (float)(n / 2)) * (float)gridSize;
-}
-
-void unit::cuddle() {
-    if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
-        currentState = groupState::Returning;
-        for (int i = 0; i < incentivesFoundInSession.size(); i++) {
-            bool alreadyShared = std::find_if(
-                sharedIncentivesFound.begin(),
-                sharedIncentivesFound.end(),
-                [&](const incentives& foundIncentive) {
-                    return foundIncentive.id == incentivesFoundInSession[i].id;
-                }
-            ) != sharedIncentivesFound.end();
-            if (!alreadyShared) sharedIncentivesFound.push_back(incentivesFoundInSession[i]);
-        }
-        claimCuddleSpot();
-    }
-}
-
-
-
-void unit::goExploreTarget(int totalUnits) {
-    if (totalUnits <= 0) totalUnits = 1;
-
-    float sliceDeg = 360.0f / (float)totalUnits;
-    float sliceStart = (id - 1.0f) * sliceDeg;
-
-    float angleDeg = sliceStart + randomNum(0, (int)sliceDeg) + 0.0f;
-    float angleRad = angleDeg * DEG2RAD;
-
-    float r = explorationRadius * std::sqrt(randomNum(0, 1000) / 1000.0f);
-
-    currentPositionalGoal = Vector2{
-        r * cosf(angleRad),
-        r * sinf(angleRad)
-    };
-}
-
-void unit::goExplore(int totalUnits, bool investigatingOrNoInput) {
-    investigatingOrNo = investigatingOrNoInput;
-    if (!investigatingOrNo) {
-        currentState = groupState::Exploring;
-        goExploreTarget(totalUnits);
-    } else {
-        currentState = groupState::Investigating;
-        if (!futurePositionalGoals.empty()) {
-            currentPositionalGoal = futurePositionalGoals.front();
-        } else {
-            // nothing assigned (bum behavior) go home and idle
-            currentPositionalGoal = {0.0f, 0.0f};
-            currentState = groupState::HangingOut;
-        }
-    }
-}
-
-void unit::findOne(incentives incentiveFound) {
-    incentivesFoundInSession.push_back(incentiveFound);
-}
-
-void unit::lookForIncentives(std::vector<incentives>& allIncentives) {
-    Vector2 unitPos = getPosition();
-    for (incentives& indivIncentive : allIncentives) {
-        // Is it within 120 pixels? If so, remove incentive
-        Vector2 incentivePos = indivIncentive.getPosition();
-
-        if (pow(unitPos.x - incentivePos.x, 2.0f) + pow(unitPos.y - incentivePos.y, 2) < pow(140, 2) && !indivIncentive.isFound()) {
-            indivIncentive.die();
-            // Tell the unit qbout it you found one
-            findOne(indivIncentive);
-        }
-    }
-}
-
-
-
-bool unit::hasReturnedToCuddle() const {
-    return hasArrivedAtCuddle &&
-        (currentState == groupState::CuddlingBeforeExploration ||
-         currentState == groupState::CuddlingBeforeInvestigation ||
-         currentState == groupState::CuddlingProcess);
-}
-
-
-
-// This is now the ONLY place that drives a unit's phase from the outside.
-// changed from having stuff inside of unitstate / unit.cpp itself change because that can mess stuf fup
-
-void unit::setGroupState(groupState inputGroupBehavior, int totalUnits) {
-    switch (inputGroupBehavior) {
-        case groupState::CuddlingBeforeExploration:
-        case groupState::CuddlingBeforeInvestigation:
-            if (currentState == groupState::Exploring || currentState == groupState::Investigating) {
-                cuddle();
-            } else {
-                currentState = groupState::Returning;
-                claimCuddleSpot();
-            }
-            currentState = inputGroupBehavior;
-            break;
-
-        case groupState::Exploring:
-            goExplore(totalUnits, false);
-            hasArrivedAtCuddle = false;
-            break;
-
-        case groupState::Investigating:
-            // add with the incentive list later
-            goExplore(totalUnits, true);
-            hasArrivedAtCuddle = false;
-            break;
-
-        case groupState::HangingOut:
-            hasArrivedAtCuddle = false;
-        case groupState::Returning:
-            
-    
-        case groupState::CuddlingProcess:
-        default:
-            currentState = inputGroupBehavior;
-            break;
-    }
 }

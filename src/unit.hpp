@@ -4,89 +4,43 @@
 
 #include "raylib.h"
 
-#include "groupState.hpp"
-#include "incentives.hpp"
-
 extern std::vector<std::string> allUnitTypes;
 
 class unit {
     public:
-        float id;
+        int id;
         std::string idAsString;
 
         Vector2 position;
 
-        float personalSpace;
-        float repelStrength;
+        // based on allUnitTypes, index into it
+        int currentType;
+
+        // Where the unit hangs around while it has nothing to do.
+        // Player commands later on just need to move this (and the goal) somewhere else.
+        Vector2 idleAnchor;
+        float idleRadius;
 
         Vector2 currentPositionalGoal;
-        float currentDirectionalGoal;
-        std::vector<Vector2> futurePositionalGoals;
-        std::vector<float> timeInSSpentAtFutureGoal;
-        bool investigatingOrNo;
 
-        int explorationRadius; // Controls how far away they will look during scouting phase
+        float personalSpace; // radius at which repulsion kicks in
+        float repelStrength; // How powerful the repulsion is
 
-        // Own memory: incentives THIS unit has personally discovered this session.
-        // Kept as owned objects since they're this unit's own findings, not shared references.
-        std::vector<incentives> incentivesFoundInSession;
+        unit(int id, Vector2 position, int typeInp);
 
-        // Assigned targets: just IDs into the central incentive store, not copies of the data.
-        // Avoids duplicating incentive data per-unit and keeps a single source of truth.
-        std::vector<int> assignedIncentiveIds;
+        void tickUpdate(float deltaTime, const std::vector<unit>& allUnits);
+        void draw() const;
 
-
-        unit(float id, Vector2 position, int typeInp);
-
-
-        void tickUpdate(float deltaTime, const std::vector<unit>& allOtherUnits);
-        void draw();
-        void remove(); // Not implemented yet
-        void cuddle();
-        Vector2 getPosition();
-        float getID();
-
-        // Sets the unit's own currentState to match the group's phase.
-        // For CuddlingBeforeExploration / CuddlingBeforeInvestigation this
-        // kicks off convergence (equivalent to calling cuddle()); for
-        // Exploring / Investigating this kicks off the corresponding
-        // outward behavior (equivalent to calling goExplore()). This is the
-        // ONLY place a unit's phase should be driven from the outside.
-        // totalUnits is only used by the Exploring/Investigating cases (to
-        // divide up scouting slices); pass 0 when it doesn't apply.
-        void setGroupState(groupState inputGroupBehavior, int totalUnits = 0);
-
-        void goExplore(int totalUnits, bool investigatingOrNo
-            // const std::vector<int>& checkTheseOutIds // IDs into the central incentives store, passed by const ref to avoid a copy
-        );
-
-        // True once this unit has physically arrived at its cuddle spot and
-        // settled back into HangingOut. Used by main.cpp to know when the
-        // whole swarm has finished converging.
-        bool hasReturnedToCuddle() const;
-
-        // Checks every incentive to see if this unit is close enough to discover it.
-        // Newly discovered ones get marked as found and added to incentivesFoundInSession
-        void lookForIncentives(std::vector<incentives>& allIncentives);
-
-        groupState currentState;
-
-        // basd on allUnitTypes, index into it
-        int currentType;
-        float totalTimeDoingTask;
-        bool doingTask;
-
-
+        Vector2 getPosition() const;
+        int getID() const;
 
     private:
         float size;
-        float direction;
+        float direction; // in degrees. Start from right, go ccw
+        float currentDirectionalGoal;
         float velocity;
         float acceleration;
         int vision;
-        bool hasArrivedAtCuddle;
 
-        void claimCuddleSpot();
-        void goExploreTarget(int totalUnits);
-        void findOne(incentives incentiveFound);
+        void pickIdleGoal();
 };

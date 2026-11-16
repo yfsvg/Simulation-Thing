@@ -46,9 +46,12 @@ void markExplored(Vector2 position, int vision) {
             if (dx * dx + dy * dy <= vision * vision) {
                 exploredTiles[row][col] = true;
             }
+
         }
     }
 }
+
+
 
 
 
