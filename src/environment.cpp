@@ -1,52 +1,34 @@
-// There will be a constant risk of breakdown, an incredibly small chance for each bot every few ticks.
-// Going through slopes or rough environment will speed up the breakdown process by just increasing risk to simulate bots falling over and stuff
-
-
-// Certain areas dicated by perlin noise will be sloped upwards or downwards. 
-// There will be a separate map that determines the rockiness and sandiness of certain areas like minecraft biomes, each coming with their own risks.
-
-
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 #include "raylib.h"
 
 #include "environment.hpp"
 
-float mapWidth = 10000;
-float mapHeight = 10000;
 
-int tileSize = 25;
-std::vector<std::vector<bool>> exploredTiles;
-
-
-void initExploredTiles() {
-    exploredTiles.clear();
-    for (int row = 0; row < mapHeight / tileSize; row++) {
-        std::vector<bool> toPush;
-        for (int col = 0; col < mapWidth / tileSize; col++) {
-            toPush.push_back(false);
-        };
-        exploredTiles.push_back(toPush);
-    };
+void initMap(GameMap& map) {
+    map.cols = (int)(map.width / map.tileSize);
+    map.rows = (int)(map.height / map.tileSize);
+    map.explored.assign(map.rows * map.cols, false);
 }
 
 
+
 // mark newly wandered areas as explored with a radius of vision tiles
-void markExplored(Vector2 position, int vision) {
-    int centerVertical = (int)((position.x + mapWidth * 0.5f) / tileSize);
-    int centerHorizontal = (int)((position.y + mapHeight * 0.5f) / tileSize);
+void markExplored(GameMap& map, Vector2 position, int vision) {
+    int centerCol = (int)((position.x + map.width * 0.5f) / map.tileSize);
+    int centerRow = (int)((position.y + map.height * 0.5f) / map.tileSize);
 
-    for (int row = std::max(0, centerHorizontal - vision); row <= std::min((int)(mapHeight / tileSize) - 1, centerHorizontal + vision); ++row) {
-        for (int col = std::max(0, centerVertical - vision); col <= std::min((int)(mapWidth / tileSize) - 1, centerVertical + vision); ++col) {
+    for (int row = std::max(0, centerRow - vision); row <= std::min(map.rows - 1, centerRow + vision); ++row) {
+        for (int col = std::max(0, centerCol - vision); col <= std::min(map.cols - 1, centerCol + vision); ++col) {
 
-            int dx = col - centerVertical;
-            int dy = row - centerHorizontal;
+            int dx = col - centerCol;
+            int dy = row - centerRow;
 
             if (dx * dx + dy * dy <= vision * vision) {
-                exploredTiles[row][col] = true;
+                map.explored[map.tileIndex(row, col)] = true;
             }
-
         }
     }
 }
@@ -55,51 +37,54 @@ void markExplored(Vector2 position, int vision) {
 
 
 
-
-
-
-void drawBG() {
-        int gridSize = 50;
+void drawBG(const GameMap& map, const Camera2D& camera) {
+    int gridSize = 50;
     Color lineColor = {150, 150, 150, 255};
 
-    float minX = mapWidth * -0.5f;
-    float maxX = mapWidth * 0.5f;
-    float minY = mapHeight * -0.5f;
-    float maxY = mapHeight * 0.5f;
+    // Only draw the part of the map that's actually on screen.
+    // Convert the screen corners into world space, then clamp to the map edges.
+    Vector2 viewTopLeft = GetScreenToWorld2D({0, 0}, camera);
+    Vector2 viewBottomRight = GetScreenToWorld2D({(float)GetScreenWidth(), (float)GetScreenHeight()}, camera);
+
+    float minX = std::max(viewTopLeft.x, map.width * -0.5f);
+    float maxX = std::min(viewBottomRight.x, map.width * 0.5f);
+    float minY = std::max(viewTopLeft.y, map.height * -0.5f);
+    float maxY = std::min(viewBottomRight.y, map.height * 0.5f);
+
+    // Snap the first line down to the grid so lines don't slide around as the camera moves
+    int firstGridX = (int)std::floor(minX / gridSize) * gridSize;
+    int firstGridY = (int)std::floor(minY / gridSize) * gridSize;
 
     // horizontal lines
-    for (int y = (int)minY; y <= (int)maxY; y += gridSize) {
-        Vector2 startPos = { minX, (float)y };
-        Vector2 endPos = { maxX, (float)y };
-        DrawLineV(startPos, endPos, lineColor);
+    for (int y = firstGridY; y <= (int)maxY; y += gridSize) {
+        DrawLineV({ minX, (float)y }, { maxX, (float)y }, lineColor);
     }
-
 
     // vertical lines
-    for (int x = (int)minX; x <= (int)maxX; x += gridSize) {
-        Vector2 startPos = { (float)x, minY };
-        Vector2 endPos = { (float)x, maxY };
-        DrawLineV(startPos, endPos, lineColor);
-
+    for (int x = firstGridX; x <= (int)maxX; x += gridSize) {
+        DrawLineV({ (float)x, minY }, { (float)x, maxY }, lineColor);
     }
 
-    // hightlight already explored parts. Include fix.
-    for (int row = 0; row < mapHeight / tileSize; row++) {
-        for (int col = 0; col < mapWidth / tileSize; col++) {
+    // Darken unexplored tiles, again only the visible range of rows/columns
+    int firstCol = std::max(0, (int)((minX + map.width * 0.5f) / map.tileSize));
+    int lastCol = std::min(map.cols - 1, (int)((maxX + map.width * 0.5f) / map.tileSize));
+    int firstRow = std::max(0, (int)((minY + map.height * 0.5f) / map.tileSize));
+    int lastRow = std::min(map.rows - 1, (int)((maxY + map.height * 0.5f) / map.tileSize));
 
-            if (!exploredTiles[row][col]) {
-                DrawRectangle(col*tileSize - mapWidth/2, row*tileSize - mapHeight/2, tileSize, tileSize, {0, 0, 0, 100});
-            } else {
-
+    for (int row = firstRow; row <= lastRow; row++) {
+        for (int col = firstCol; col <= lastCol; col++) {
+            if (!map.explored[map.tileIndex(row, col)]) {
+                DrawRectangle(col * map.tileSize - map.width / 2, row * map.tileSize - map.height / 2, map.tileSize, map.tileSize, {0, 0, 0, 100});
             }
+        }
+    }
 
-        };
-    };
+
 
     // Draw center
+
+
     DrawRectangle(-10, -10, 20, 20, WHITE);
 
+
 }
-
-
-

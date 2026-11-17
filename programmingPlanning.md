@@ -1,8 +1,8 @@
 Things to do in the near future:
 1. Lay down the groundwork for easier game dev
-    - Use a game struct that can be accessed instead of using global variables.
-    - Draw only what is visible instead of using drawBG to draw 160,000 fog rectangles every time.
-    - Adding scroll wheel zoom
+    - Use a game struct that can be accessed instead of using global variables. Done through the game.hpp file, shared header
+    - Draw only what is visible instead of using drawBG to draw 160,000 fog rectangles every time. (DONE)
+    - Adding scroll wheel zoom (DONE)
 
 2. Selection and move orders
     - Dragging over an area to select multiple bots
@@ -16,5 +16,9 @@ Things to do in the near future:
     - I think one reason why I wasn't doing shit was because the resources were just blocks and not interesting. If I start working on art along with it I'll be less likely to be burnt out because that is fun.
     - Regolith can be mined literally anywhere, and raw iron is scattered for now.
 
-4. Mining and hauling
+4. Data and Stats for each unit
+    - Standardizes easy to change stats for later balancing, C key is kept as a dev testing element
+
+5. Mining and hauling and other tasks.
     - Connecting #2 and #3 so you can direct bots to do certain things.
+    - We first implement 

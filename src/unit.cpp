@@ -71,7 +71,7 @@ void unit::pickIdleGoal() {
 }
 
 
-void unit::tickUpdate(float deltaTime, const std::vector<unit>& allUnits) {
+void unit::tickUpdate(float deltaTime, const std::vector<unit>& allUnits, GameMap& map) {
     float dx = currentPositionalGoal.x - position.x;
     float dy = currentPositionalGoal.y - position.y;
     float distance = std::sqrt(dx * dx + dy * dy);
@@ -120,6 +120,5 @@ void unit::tickUpdate(float deltaTime, const std::vector<unit>& allUnits) {
     position.x += velocity * cosf(direction * DEG2RAD) * deltaTime;
     position.y += velocity * sinf(direction * DEG2RAD) * deltaTime;
 
-    // mark newly wandered areas as explored with a radius of vision tiles
-    markExplored(position, vision);
+    markExplored(map, position, vision);
 }

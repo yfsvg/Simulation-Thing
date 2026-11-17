@@ -1,9 +1,7 @@
 #pragma once
 #include "raylib.h"
 
-extern Camera2D camera;
-extern float cameraSpeed;
-extern int panButton;
+#include "environment.hpp"
 
-void initCamera();
-void cameraMovement();
+void initCamera(Camera2D& camera);
+void cameraMovement(Camera2D& camera, const GameMap& map);

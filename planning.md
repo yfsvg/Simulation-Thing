@@ -110,6 +110,9 @@ There can also be wild-card hazards that happen
 3. Dust devils, actually relatively slow moving but you'll have to move bots away if they don't have vision/cognition upgrades. 
 4. Volcanic eruptions. Every so often one of the volcanos that you have access to will erupt. You will have ample warning if you have a geothermal plant nearby anyways, so you have time to adapt to it and disassemble the plant for the energy quickly.
 
+## Emotional Twist
+
+
 
 
 

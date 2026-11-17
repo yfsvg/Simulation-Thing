@@ -4,6 +4,8 @@
 
 #include "raylib.h"
 
+struct GameMap;
+
 extern std::vector<std::string> allUnitTypes;
 
 class unit {
@@ -28,7 +30,7 @@ class unit {
 
         unit(int id, Vector2 position, int typeInp);
 
-        void tickUpdate(float deltaTime, const std::vector<unit>& allUnits);
+        void tickUpdate(float deltaTime, const std::vector<unit>& allUnits, GameMap& map);
         void draw() const;
 
         Vector2 getPosition() const;
